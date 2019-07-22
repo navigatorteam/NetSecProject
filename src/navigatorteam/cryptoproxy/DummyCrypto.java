@@ -7,11 +7,11 @@ public class DummyCrypto implements CryptoServiceProvider {
 
     @Override
     public String encrypt(String input) {
-        return input;
+        return HexStrings.toHexString(input.getBytes());
     }
 
     @Override
     public String decrypt(String input) {
-        return input;
+        return new String(HexStrings.fromHexStringToBuffer(input));
     }
 }
