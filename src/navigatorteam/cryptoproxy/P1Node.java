@@ -29,6 +29,9 @@ public class P1Node implements LogProducer {
             P1Node p1Node = new P1Node(Consts.P1Port);
 
             p1Node.startListening();
+
+
+
         } catch (SocketException se) {
             System.out.println("Socket Exception when connecting to client");
             se.printStackTrace();
