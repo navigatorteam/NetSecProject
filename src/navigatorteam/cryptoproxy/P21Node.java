@@ -3,6 +3,7 @@ package navigatorteam.cryptoproxy;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
@@ -17,6 +18,7 @@ import java.util.Set;
 public class P21Node implements LogProducer{
 
     private final ServerSocket socketWithP1;
+    private final Socket socketWithP22;
 
 
     private boolean listen = false;
@@ -45,7 +47,7 @@ public class P21Node implements LogProducer{
 
     public P21Node(int port) throws IOException {
         socketWithP1 = new ServerSocket(port);
-
+        socketWithP22 = new Socket(Consts.P22Host, Consts.P22Port);
 
         //socketWithP1.setSoTimeout(100000);	//if needed to add timeout
         print("Port: " + socketWithP1.getLocalPort());
@@ -85,6 +87,7 @@ public class P21Node implements LogProducer{
 
 
         socketWithP1.close();
+        socketWithP22.close();
 
     }
 
@@ -96,7 +99,10 @@ public class P21Node implements LogProducer{
             String s = bufferedReader.readLine();
 
             print(s);
-            System.out.println(s);
+
+
+            PrintWriter out = new PrintWriter(socketWithP22.getOutputStream(), true);
+            out.println(s);
 
         } catch (IOException e) {
             e.printStackTrace();

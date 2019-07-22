@@ -96,7 +96,6 @@ public class P1Node implements LogProducer {
             String s = bufferedReader.readLine();
 
             print(s);
-            System.out.println(s);
 
             PrintWriter out = new PrintWriter(socketWithP21.getOutputStream(), true);
             out.println(s);

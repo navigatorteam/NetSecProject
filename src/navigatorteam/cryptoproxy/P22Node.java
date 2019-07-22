@@ -1,12 +1,14 @@
 package navigatorteam.cryptoproxy;
 
+import rawhttp.core.EagerHttpResponse;
+import rawhttp.core.RawHttp;
+import rawhttp.core.RawHttpRequest;
+import rawhttp.core.RawHttpResponse;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
+import java.net.*;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -16,6 +18,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * Created on 2019-07-22.
  */
 public class P22Node implements LogProducer{
+
+    public static RawHttp rawHttp = new RawHttp();
+
     private final ServerSocket socketWithP21;
 
     private boolean listen = false;
@@ -28,7 +33,7 @@ public class P22Node implements LogProducer{
 
     public static void main(String args[]) {
         try {
-            P22Node p22Node = new P22Node(Consts.P21Port);
+            P22Node p22Node = new P22Node(Consts.P22Port);
 
             p22Node.startListening();
         } catch (SocketException se) {
@@ -61,9 +66,8 @@ public class P22Node implements LogProducer{
             Socket socket = socketWithP21.accept(); //waits for new connection/request
 
             print("new request from P21...");
-            Thread thread = new Thread(new Requester(socket,
-                    () -> activeThreads.remove(Thread.currentThread())) //lambda called at the end to keep clean the thread set
-            );
+            Thread thread = new Thread(()-> handleRequest(socket));
+
 
             // Key a reference to each thread so they can be joined later if necessary
             activeThreads.add(thread);
@@ -89,42 +93,40 @@ public class P22Node implements LogProducer{
 
     }
 
-    public static class Requester implements Runnable, LogProducer {
-
-        private Socket p21socket;
-        private final Runnable onEnd;
-
-        public Requester(Socket p21socket, Runnable onEnd){
-            this.p21socket = p21socket;
-            this.onEnd = onEnd;
-        }
 
 
-        @Override
-        public void run() {
-            try {
-                BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(p21socket.getInputStream()));
-                String s = bufferedReader.readLine();
+    public void handleRequest(Socket p21Socket){
+        try {
+            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(p21Socket.getInputStream()));
+            String request = bufferedReader.readLine();
 
-                print(s);
+            print(request);
+
+            RawHttpRequest rawHttpRequest = rawHttp.parseRequest(request);
+            URI uri = rawHttpRequest.getUri();
+
+            //request to external server
+            Socket outSocket = new Socket(uri.getHost(), 80);
+
+            rawHttpRequest.writeTo(outSocket.getOutputStream());
 
 
-                //TODO request to external server
+            RawHttpResponse<?> response = rawHttp.parseResponse(outSocket.getInputStream());
+
+            // call "eagerly()" in order to download the body
+            EagerHttpResponse<?> eagerResponse = response.eagerly();
+            print("RESPONSE: "+eagerResponse.toString());
 
 
-            } catch (IOException e) {
-                e.printStackTrace();
-            }finally {
-                onEnd.run();
-            }
 
-        }
-
-        @Override
-        public String getLoggerName() {
-            return "P22";
+        } catch (IOException e) {
+            e.printStackTrace();
+        }finally {
+            activeThreads.remove(Thread.currentThread());
         }
     }
+
+
 
 
 }
