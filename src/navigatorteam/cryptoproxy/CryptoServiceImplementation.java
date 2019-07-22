@@ -3,12 +3,16 @@ package navigatorteam.cryptoproxy;
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.util.Random;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
 
 public class CryptoServiceImplementation implements CryptoServiceProvider {
 
     private AsymmetricKey publicKey;
     private AsymmetricKey privateKey;
     private AsymmetricKey otherEntityPublicKey;
+    private SymmetricKey sharedKey;
+    private ExchangedObject message;
     //TODO SymmetricKey
 
     private BigInteger p;
@@ -20,16 +24,30 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
 
     private int bigIntegerLength = 512;
 
+    //TODO settare la chiave otherEntityPublicKey
+
     @Override
     public String encrypt(String input) {
-        BigInteger plainTextBigInteger = new BigInteger(1, input.getBytes());
-        return new String(plainTextBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray());
+        sharedKey = new SharedKey(generateSharedKey());
+        //TODO String encryptedRequest = encryptSymmetric(input);
+        BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
+        String encryptedKey = String(keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray());
+        //TODO integrità
+        message = new ExchangedObject(encryptedRequest, encryptedKey);
+        //TODO returnare il messaggio (.toString per json)
+        return null;
     }
 
     @Override
     public String decrypt(String input) {
-        BigInteger cipherTextBigInteger = new BigInteger(1, input.getBytes());
-        return new String(cipherTextBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
+        //TODO deserializza l'oggetto / json
+        ExchangedObject messageRecv= new ExchangedObject("","");
+        BigInteger keyBigInteger = new BigInteger(1, messageRecv.encryptedSharedKey.getBytes());
+        String decryptedKey = String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
+        //TODO settare in sharedkey il campo chiave
+        //String decryptedRequest= decryptSymmetric(messageRecv.encryptedRequest);
+        //Return decryptedRequest
+        return null
     }
 
     @Override
@@ -40,6 +58,14 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         generateD();
         publicKey = new RSAKey(e, n);
         privateKey = new RSAKey(d, n);
+    }
+
+    private String generateSharedKey() {
+        KeyGenerator keyGen = null;
+        keyGen = KeyGenerator.getInstance("AES");
+        keyGen.init(128);
+        SecretKey secretKey = keyGen.generateKey();
+        return Base64.getEncoder().encodeToString(secretKey.getEncoded());
     }
 
     private void generateRandomPrimes()
@@ -73,11 +99,4 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         this.d = e.modInverse(phiN);
     }
 
-    public BigInteger encrypt(BigInteger text) {
-        return text.modPow(e, n);
-    }
-
-    public BigInteger decrypt(BigInteger cipher) {
-        return cipher.modPow(d, n);
-    }
 }
