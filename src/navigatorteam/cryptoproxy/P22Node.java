@@ -5,15 +5,13 @@ import rawhttp.core.RawHttp;
 import rawhttp.core.RawHttpRequest;
 import rawhttp.core.RawHttpResponse;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
+import java.io.*;
 import java.net.*;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Created on 2019-07-22.
@@ -34,7 +32,7 @@ public class P22Node implements LogProducer {
 
     public static void main(String args[]) {
         try {
-            P22Node p22Node = new P22Node(Consts.P22Port);
+            P22Node p22Node = new P22Node(ConstsAndUtils.P22Port);
 
             p22Node.startListening();
         } catch (SocketException se) {
@@ -53,21 +51,21 @@ public class P22Node implements LogProducer {
 
 
         //socketWithP1.setSoTimeout(100000);	//if needed to add timeout
-        print("Port: " + socketWithP21.getLocalPort());
+        Logger.getLogger(getLoggerName()).info("Port: " + socketWithP21.getLocalPort());
 
 
     }
 
 
     private void startListening() throws IOException {
-        print("Started listening...");
+        Logger.getLogger(getLoggerName()).info("Started listening...");
         listen = true;
 
         while (listen) {
             Socket socket = socketWithP21.accept(); //waits for new connection/request
 
-            print("new request from P21...");
-            Thread thread = new Thread(() -> handleRequest(socket));
+            Logger.getLogger(getLoggerName()).info("new request from P21...");
+            Thread thread = new Thread(() -> handleRequest(socket, ConstsAndUtils.nextID()));
 
 
             // Key a reference to each thread so they can be joined later if necessary
@@ -95,36 +93,42 @@ public class P22Node implements LogProducer {
     }
 
 
-    public void handleRequest(Socket p21Socket) {
+    public void handleRequest(Socket p21Socket, int internalReqID) {
         try {
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(p21Socket.getInputStream()));
-            String request = bufferedReader.readLine();
+            RawHttpRequest rawHttpRequest = rawHttp.parseRequest(p21Socket.getInputStream()).eagerly();
 
-            print(request);
+            String request = rawHttpRequest.toString();
 
-            RawHttpRequest rawHttpRequest = rawHttp.parseRequest(request);
+            Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + request);
+
             URI uri = rawHttpRequest.getUri();
 
 
-            print("Request to external server...");
-            Socket outSocket = new Socket(uri.getHost(), 80);
 
+            Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + "Request to external server...");
+            Socket outSocket = new Socket(uri.getHost(), uri.getPort() > 0 ? uri.getPort() : 80);
+
+
+//            PrintWriter out = new PrintWriter(outSocket.getOutputStream(), true);
+//            out.println(request);
             rawHttpRequest.writeTo(outSocket.getOutputStream());
 
-            print("Waiting response...");
+            Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + "Waiting response...");
             RawHttpResponse<?> response = rawHttp.parseResponse(outSocket.getInputStream());
 
             // call "eagerly()" in order to download the body
             EagerHttpResponse<?> eagerResponse = response.eagerly();
-            String resp = eagerResponse.toString();
-            print("RESPONSE: " + resp);
+            if (eagerResponse != null) {
+                String resp = eagerResponse.toString();
+                Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + ("RESPONSE: " + resp));
 
+                Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + "Sending response to P21...");
+                PrintWriter p21Out = new PrintWriter(p21Socket.getOutputStream(), true);
+                p21Out.println(resp);
 
-            print("Sending response to P21...");
-            PrintWriter p21Out = new PrintWriter(p21Socket.getOutputStream(), true);
-            p21Out.println(resp);
-            p21Out.println("cicciobaubaubenzina");
-            print("Response sent.");
+                Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + "Response sent.");
+            }
+
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -133,5 +137,19 @@ public class P22Node implements LogProducer {
         }
     }
 
+
+    public String removeAcceptEncoding(String request) {
+
+        BufferedReader reader = new BufferedReader(new StringReader(request));
+        return reader.lines()/*.map(s -> {
+            if (s.toLowerCase().startsWith("accept-encoding")) {
+                return "Accept-Encoding: identity";
+            } else {
+                return s;
+            }
+        })*/.collect(Collectors.joining("\n"))+"\n";
+
+
+    }
 
 }

@@ -10,21 +10,12 @@ public interface LogProducer {
     String getLoggerName();
 
 
-    default Logger logger(){
-        return Logger.getLogger(getLoggerName());
-    }
-
-
-    default void print(String text){
-        logger().info(text);
-    }
-
     default void printErr(String text){
-        logger().severe(text);
+        Logger.getLogger(getLoggerName()).severe(text);
     }
 
     default void printException(String sourceClass, String method, Throwable e){
-        logger().throwing(sourceClass, method, e);
+        Logger.getLogger(getLoggerName()).throwing(sourceClass, method, e);
     }
 
 

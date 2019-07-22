@@ -1,5 +1,8 @@
 package navigatorteam.cryptoproxy;
 
+import rawhttp.core.RawHttp;
+import rawhttp.core.RawHttpResponse;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -11,12 +14,16 @@ import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.logging.Logger;
 
 /**
  * Created on 2019-07-22.
  */
 public class P21Node implements LogProducer{
+
+
+
+    public static RawHttp rawHttp = new RawHttp();
 
     private final ServerSocket socketWithP1;
     private final Socket socketWithP22;
@@ -33,7 +40,7 @@ public class P21Node implements LogProducer{
 
     public static void main(String args[]) {
         try {
-            P21Node p21Node = new P21Node(Consts.P21Port);
+            P21Node p21Node = new P21Node(ConstsAndUtils.P21Port);
 
             p21Node.waitForAuth();
 
@@ -62,24 +69,26 @@ public class P21Node implements LogProducer{
 
     public P21Node(int port) throws IOException {
         socketWithP1 = new ServerSocket(port);
-        socketWithP22 = new Socket(Consts.P22Host, Consts.P22Port);
+        socketWithP22 = new Socket(ConstsAndUtils.P22Host, ConstsAndUtils.P22Port);
 
         //socketWithP1.setSoTimeout(100000);	//if needed to add timeout
-        print("Port: " + socketWithP1.getLocalPort());
+        Logger.getLogger(getLoggerName()).info("Port: " + socketWithP1.getLocalPort());
 
 
     }
 
 
     private void startListening() throws IOException {
-        print("Started listening...");
+        Logger.getLogger(getLoggerName()).info("Started listening...");
         listen = true;
 
         while (listen) {
+            Logger.getLogger(getLoggerName()).info("Waiting accept...");
             Socket socket = socketWithP1.accept(); //waits for new connection/request
 
-            print("new request from P1...");
-            Thread thread = new Thread(() -> handleRequest(socket));
+            Logger.getLogger(getLoggerName()).info("new request from P1...");
+
+            Thread thread = new Thread(() -> handleRequest(socket, ConstsAndUtils.nextID()));
 
             // Key a reference to each thread so they can be joined later if necessary
             activeThreads.add(thread);
@@ -108,38 +117,38 @@ public class P21Node implements LogProducer{
 
 
     //multithreaded
-    public void handleRequest(Socket clientSocket) {
+    public void handleRequest(Socket clientSocket, int internalReqID) {
         try {
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             String s = bufferedReader.readLine();
 
-            print("Decrypting...");
-            String c = crypto.decrypt(s);
+            if(s != null) {
+                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Decrypting...");
+                String c = crypto.decrypt(s);
 
-            print(c);
-            print("Sending to P22...");
-            PrintWriter out = new PrintWriter(socketWithP22.getOutputStream(), true);
-            out.println(c);
-            print("Sent.");
+                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ c);
+                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Sending to P22...");
+                PrintWriter out = new PrintWriter(socketWithP22.getOutputStream(), true);
+                out.println(c);
+                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Sent.");
 
-            print("Waiting response from P22...");
-            BufferedReader p22In = new BufferedReader(new InputStreamReader(socketWithP22.getInputStream()));
+                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Waiting response from P22...");
 
-            String resp = "";
-            String line = "";
-            while((line = p22In.readLine())!=null ){
-                //TODO work in progress.
+                RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse(socketWithP22.getInputStream());
+
+
+                String resp = rawHttpResponse.eagerly().toString();
+                if(resp != null) {
+                    Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ ("RESPONSE: " + resp));
+
+                    Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Encrypting response...");
+                    String resp_crypt = crypto.encrypt(resp);
+                    Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Sending response to P1...");
+                    PrintWriter outP1 = new PrintWriter(clientSocket.getOutputStream(), true);
+                    outP1.println(resp_crypt);
+                    Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Response sent.");
+                }
             }
-
-
-            print("RESPONSE: "+resp);
-
-            print("Encrypting response...");
-            String resp_crypt = crypto.encrypt(resp);
-            print("Sending response to P1...");
-            PrintWriter outP1 = new PrintWriter(clientSocket.getOutputStream(), true);
-            outP1.println(resp_crypt);
-            print("Response sent.");
 
         } catch (IOException e) {
             e.printStackTrace();
