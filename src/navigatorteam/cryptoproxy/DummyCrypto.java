@@ -14,4 +14,9 @@ public class DummyCrypto implements CryptoServiceProvider {
     public String decrypt(String input) {
         return new String(HexStrings.fromHexStringToBuffer(input));
     }
+
+    @Override
+    public void generateKeys() {
+        //do nothing
+    }
 }

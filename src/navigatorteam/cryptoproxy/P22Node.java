@@ -1,9 +1,7 @@
 package navigatorteam.cryptoproxy;
 
-import rawhttp.core.EagerHttpResponse;
 import rawhttp.core.RawHttp;
 import rawhttp.core.RawHttpRequest;
-import rawhttp.core.RawHttpResponse;
 
 import java.io.*;
 import java.net.*;
@@ -20,7 +18,7 @@ public class P22Node implements LogProducer {
 
     public static RawHttp rawHttp = new RawHttp();
 
-    private final ServerSocket socketWithP21;
+    private final ServerSocket serverSocketWithP21;
 
     private boolean listen = false;
     private final Set<Thread> activeThreads = Collections.synchronizedSet(new HashSet<>());
@@ -47,11 +45,11 @@ public class P22Node implements LogProducer {
 
 
     public P22Node(int port) throws IOException {
-        socketWithP21 = new ServerSocket(port);
+        serverSocketWithP21 = new ServerSocket(port);
 
 
         //socketWithP1.setSoTimeout(100000);	//if needed to add timeout
-        Logger.getLogger(getLoggerName()).info("Port: " + socketWithP21.getLocalPort());
+        Logger.getLogger(getLoggerName()).info("Port: " + serverSocketWithP21.getLocalPort());
 
 
     }
@@ -62,11 +60,12 @@ public class P22Node implements LogProducer {
         listen = true;
 
         while (listen) {
-            Socket socket = socketWithP21.accept(); //waits for new connection/request
+            Logger.getLogger(getLoggerName()).info("Waiting accept...");
+            Socket socket = serverSocketWithP21.accept(); //waits for new connection/request
 
             Logger.getLogger(getLoggerName()).info("new request from P21...");
-            Thread thread = new Thread(() -> handleRequest(socket, ConstsAndUtils.nextID()));
 
+            Thread thread = new Thread(() -> handleRequest(socket, ConstsAndUtils.nextID()));
 
             // Key a reference to each thread so they can be joined later if necessary
             activeThreads.add(thread);
@@ -85,71 +84,75 @@ public class P22Node implements LogProducer {
                     t.interrupt();
                 }
             }
+            activeThreads.clear();
         }
 
 
-        socketWithP21.close();
+        serverSocketWithP21.close();
 
     }
 
 
     public void handleRequest(Socket p21Socket, int internalReqID) {
+        HttpURLConnection proxyToServerCon = null;
         try {
-            RawHttpRequest rawHttpRequest = rawHttp.parseRequest(p21Socket.getInputStream()).eagerly();
-
-            String request = rawHttpRequest.toString();
-
-            Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + request);
-
-            URI uri = rawHttpRequest.getUri();
-
-
-
-            Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + "Request to external server...");
-            Socket outSocket = new Socket(uri.getHost(), uri.getPort() > 0 ? uri.getPort() : 80);
-
-
-//            PrintWriter out = new PrintWriter(outSocket.getOutputStream(), true);
-//            out.println(request);
-            rawHttpRequest.writeTo(outSocket.getOutputStream());
-
-            Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + "Waiting response...");
-            RawHttpResponse<?> response = rawHttp.parseResponse(outSocket.getInputStream());
-
-            // call "eagerly()" in order to download the body
-            EagerHttpResponse<?> eagerResponse = response.eagerly();
-            if (eagerResponse != null) {
-                String resp = eagerResponse.toString();
-                Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + ("RESPONSE: " + resp));
-
-                Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + "Sending response to P21...");
-                PrintWriter p21Out = new PrintWriter(p21Socket.getOutputStream(), true);
-                p21Out.println(resp);
-
-                Logger.getLogger(getLoggerName()).info("RQ" + internalReqID + ": " + "Response sent.");
-            }
-
+            BufferedReader p21In = new BufferedReader(new InputStreamReader(p21Socket.getInputStream()));
+            Pipe p = new Pipe(activeThreads, p21In, new PrintWriter(System.out), s -> s);
+            activeThreads.add(p);
+            p.start();
+            p.join();
+//            String firstLine = p21In.readLine();
+//
+//            if(firstLine != null) {
+//                String url = firstLine.substring(firstLine.indexOf(' '));
+//                url = url.substring(1, url.indexOf(' '));
+//
+//                Logger.getLogger(getLoggerName()).info("REQ"+internalReqID+": connecting to '"+url+"'");
+//
+//                // Create the URL
+//                URL remoteURL = new URL(url);
+//                // Create a connection to remote server
+//                proxyToServerCon = (HttpURLConnection) remoteURL.openConnection();
+//                PrintWriter serverOut = new PrintWriter(proxyToServerCon.getOutputStream());
+//
+//                Pipe p21ToServerPipe = new Pipe(activeThreads, p21In, serverOut, s -> {
+//                    Logger.getLogger(getLoggerName()).info("REQ" + internalReqID + ": ---> " + s);
+//                    return s;
+//                });
+//                activeThreads.add(p21ToServerPipe);
+//
+//                BufferedReader serverIn = new BufferedReader(new InputStreamReader(proxyToServerCon.getInputStream()));
+//                PrintWriter p21Out = new PrintWriter(p21Socket.getOutputStream());
+//                Pipe serverToP21Pipe = new Pipe(activeThreads, serverIn, p21Out, s -> {
+//                    Logger.getLogger(getLoggerName()).info("RSP" + internalReqID + ": <--- " + s);
+//                    return s;
+//                });
+//                activeThreads.add(serverToP21Pipe);
+//
+//                serverOut.println(firstLine);
+//                p21ToServerPipe.start();
+//                serverToP21Pipe.start();
+//
+//                p21ToServerPipe.join();
+//                serverToP21Pipe.join();
+//            }
 
         } catch (IOException e) {
             e.printStackTrace();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
         } finally {
+            try {
+                p21Socket.close();
+                if(proxyToServerCon != null){
+                    proxyToServerCon.disconnect();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             activeThreads.remove(Thread.currentThread());
         }
     }
 
-
-    public String removeAcceptEncoding(String request) {
-
-        BufferedReader reader = new BufferedReader(new StringReader(request));
-        return reader.lines()/*.map(s -> {
-            if (s.toLowerCase().startsWith("accept-encoding")) {
-                return "Accept-Encoding: identity";
-            } else {
-                return s;
-            }
-        })*/.collect(Collectors.joining("\n"))+"\n";
-
-
-    }
 
 }

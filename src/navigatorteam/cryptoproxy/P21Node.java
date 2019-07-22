@@ -3,14 +3,8 @@ package navigatorteam.cryptoproxy;
 import rawhttp.core.RawHttp;
 import rawhttp.core.RawHttpResponse;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.net.SocketException;
-import java.net.SocketTimeoutException;
+import java.io.*;
+import java.net.*;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
@@ -19,14 +13,13 @@ import java.util.logging.Logger;
 /**
  * Created on 2019-07-22.
  */
-public class P21Node implements LogProducer{
-
+public class P21Node implements LogProducer {
 
 
     public static RawHttp rawHttp = new RawHttp();
 
-    private final ServerSocket socketWithP1;
-    private final Socket socketWithP22;
+    private final ServerSocket serverSocketWithP1;
+
 
     private CryptoServiceProvider crypto = null;
 
@@ -68,11 +61,11 @@ public class P21Node implements LogProducer{
 
 
     public P21Node(int port) throws IOException {
-        socketWithP1 = new ServerSocket(port);
-        socketWithP22 = new Socket(ConstsAndUtils.P22Host, ConstsAndUtils.P22Port);
+        serverSocketWithP1 = new ServerSocket(port);
 
-        //socketWithP1.setSoTimeout(100000);	//if needed to add timeout
-        Logger.getLogger(getLoggerName()).info("Port: " + socketWithP1.getLocalPort());
+
+        //serverSocketWithP1.setSoTimeout(100000);	//if needed to add timeout
+        Logger.getLogger(getLoggerName()).info("Port: " + serverSocketWithP1.getLocalPort());
 
 
     }
@@ -84,7 +77,7 @@ public class P21Node implements LogProducer{
 
         while (listen) {
             Logger.getLogger(getLoggerName()).info("Waiting accept...");
-            Socket socket = socketWithP1.accept(); //waits for new connection/request
+            Socket socket = serverSocketWithP1.accept(); //waits for new connection/request
 
             Logger.getLogger(getLoggerName()).info("new request from P1...");
 
@@ -107,55 +100,126 @@ public class P21Node implements LogProducer{
                     t.interrupt();
                 }
             }
+            activeThreads.clear();
         }
 
 
-        socketWithP1.close();
-        socketWithP22.close();
+        serverSocketWithP1.close();
+
 
     }
 
 
     //multithreaded
-    public void handleRequest(Socket clientSocket, int internalReqID) {
+//    public void handleRequest(Socket p1Socket, int internalReqID) {
+//        try (Socket p22Socket = new Socket(ConstsAndUtils.P22Host, ConstsAndUtils.P22Port)){
+//
+//            BufferedReader p1In = new BufferedReader(new InputStreamReader(p1Socket.getInputStream()));
+//            PrintWriter p22Out = new PrintWriter(p22Socket.getOutputStream());
+//
+//            Pipe p1ToP22Pipe = new Pipe(activeThreads, p1In, p22Out, s ->{
+//                String decS = crypto.decrypt(s);
+//                Logger.getLogger(getLoggerName()).info("REQ"+internalReqID+": ---> "+decS);
+//                return decS;
+//            });
+//            activeThreads.add(p1ToP22Pipe);
+//
+//            BufferedReader p22In = new BufferedReader(new InputStreamReader(p22Socket.getInputStream()));
+//            PrintWriter p1Out = new PrintWriter(p1Socket.getOutputStream());
+//
+//            Pipe p22ToP1Pipe = new Pipe(activeThreads, p22In, p1Out, s -> {
+//                Logger.getLogger(getLoggerName()).info("RSP"+internalReqID+": <--- "+s);
+//                return crypto.encrypt(s);
+//            });
+//
+//            activeThreads.add(p22ToP1Pipe);
+//
+//            p1ToP22Pipe.start();
+//            p22ToP1Pipe.start();
+//
+//            p1ToP22Pipe.join();
+//            p22ToP1Pipe.join();
+//
+//        } catch (IOException | InterruptedException e) {
+//            e.printStackTrace();
+//        } finally {
+//            try {
+//                p1Socket.close();
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//            activeThreads.remove(Thread.currentThread());
+//        }
+//
+//    }
+
+
+    public void handleRequest(Socket p1Socket, int internalReqID) {
+        HttpURLConnection proxyToServerCon = null;
         try {
-            BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            String s = bufferedReader.readLine();
+            BufferedReader p21In = new BufferedReader(new InputStreamReader(p1Socket.getInputStream()));
+            String firstLine = crypto.decrypt(p21In.readLine());
+            System.out.println(firstLine);
+            if (firstLine != null) {
+                String url = firstLine.substring(firstLine.indexOf(' '));
+                url = url.substring(1);
+                url = url.substring(0, url.indexOf(' '));
 
-            if(s != null) {
-                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Decrypting...");
-                String c = crypto.decrypt(s);
+                Logger.getLogger(getLoggerName()).info("REQ" + internalReqID + ": connecting to '" + url + "'");
 
-                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ c);
-                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Sending to P22...");
-                PrintWriter out = new PrintWriter(socketWithP22.getOutputStream(), true);
-                out.println(c);
-                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Sent.");
+                // Create the URL
+                URL remoteURL = new URL(url);
+                // Create a connection to remote server
+                proxyToServerCon = (HttpURLConnection) remoteURL.openConnection();
+                proxyToServerCon.setDoOutput(true);
+                PrintWriter serverOut = new PrintWriter(proxyToServerCon.getOutputStream());
 
-                Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Waiting response from P22...");
+                Pipe p21ToServerPipe = new Pipe(activeThreads, p21In, serverOut, s -> {
+                    String decS = crypto.decrypt(s);
+                    Logger.getLogger(getLoggerName()).info("REQ" + internalReqID + ": ---> " + decS);
+                    return decS;
+                });
+                activeThreads.add(p21ToServerPipe);
 
-                RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse(socketWithP22.getInputStream());
+                BufferedReader serverIn = new BufferedReader(new InputStreamReader(proxyToServerCon.getInputStream()));
+                PrintWriter p21Out;
+                try {
+                    p21Out = new PrintWriter(p1Socket.getOutputStream());
 
+                    Pipe serverToP21Pipe = new Pipe(activeThreads, serverIn, p21Out, s -> {
+                        Logger.getLogger(getLoggerName()).info("RSP" + internalReqID + ": <--- " + s);
+                        return crypto.encrypt(s);
+                    });
+                    activeThreads.add(serverToP21Pipe);
 
-                String resp = rawHttpResponse.eagerly().toString();
-                if(resp != null) {
-                    Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ ("RESPONSE: " + resp));
+                    serverOut.println(firstLine);
+                    p21ToServerPipe.start();
+                    serverToP21Pipe.start();
 
-                    Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Encrypting response...");
-                    String resp_crypt = crypto.encrypt(resp);
-                    Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Sending response to P1...");
-                    PrintWriter outP1 = new PrintWriter(clientSocket.getOutputStream(), true);
-                    outP1.println(resp_crypt);
-                    Logger.getLogger(getLoggerName()).info("RQ"+ internalReqID + ": "+ "Response sent.");
+                    p21ToServerPipe.join();
+                    serverToP21Pipe.join();
+                } catch (FileNotFoundException fnfe) {
+                    RawHttpResponse<Void> voidRawHttpResponse = rawHttp.parseResponse("HTTP/1.0 404 Not Found");
+                    voidRawHttpResponse.writeTo(p1Socket.getOutputStream());
+
                 }
             }
 
         } catch (IOException e) {
             e.printStackTrace();
-        }finally {
-
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                p1Socket.close();
+                if (proxyToServerCon != null) {
+                    proxyToServerCon.disconnect();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             activeThreads.remove(Thread.currentThread());
         }
-
     }
+
 }
