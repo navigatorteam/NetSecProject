@@ -9,11 +9,13 @@ import java.net.*;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class P1Node implements LogProducer {
 
     private final ServerSocket socketWithClient;
     private final Socket socketWithP21;
+    private CryptoServiceProvider crypto = null;
 
 
     private boolean listen = false;
@@ -28,9 +30,11 @@ public class P1Node implements LogProducer {
         try {
             P1Node p1Node = new P1Node(Consts.P1Port);
 
+            p1Node.auth();
+
+            p1Node.initCrypto(/*args*/);
+
             p1Node.startListening();
-
-
 
         } catch (SocketException se) {
             System.out.println("Socket Exception when connecting to client");
@@ -42,6 +46,15 @@ public class P1Node implements LogProducer {
         } catch (IOException io) {
             System.out.println("IO exception when connecting to client");
         }
+    }
+
+    private void auth() {
+        //TODO implement
+    }
+
+    private void initCrypto() {
+        //TODO implement with correct crypto
+        crypto = new DummyCrypto();
     }
 
 
@@ -63,7 +76,7 @@ public class P1Node implements LogProducer {
         while (listen) {
             Socket socket = socketWithClient.accept(); //waits for new connection/request
 
-            print("new request from client...");
+            print("New request from client...");
             Thread thread = new Thread(() -> handleRequest(socket));
 
             // Key a reference to each thread so they can be joined later if necessary
@@ -100,16 +113,32 @@ public class P1Node implements LogProducer {
 
             print(s);
 
+            print("encrypting...");
+            String c = crypto.encrypt(s);
+
+            print("sending to P21...");
             PrintWriter out = new PrintWriter(socketWithP21.getOutputStream(), true);
-            out.println(s);
+            out.println(c);
+
+            print("Waiting for response...");
+            BufferedReader p21In = new BufferedReader(new InputStreamReader(socketWithP21.getInputStream()));
+            String resp_crypt = p21In.lines().collect(Collectors.joining());
+
+            print("decrypting response...");
+            String resp = crypto.decrypt(resp_crypt);
+
+            print("RESPONSE: " + resp);
+
+            print("Sending response to client...");
+            PrintWriter client_out = new PrintWriter(clientSocket.getOutputStream(), true);
+
+            client_out.println(resp);
 
         } catch (IOException e) {
             e.printStackTrace();
         }finally {
-
             activeThreads.remove(Thread.currentThread());
         }
-
     }
 
 

@@ -8,6 +8,7 @@ import rawhttp.core.RawHttpResponse;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.io.PrintWriter;
 import java.net.*;
 import java.util.Collections;
 import java.util.HashSet;
@@ -17,7 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  * Created on 2019-07-22.
  */
-public class P22Node implements LogProducer{
+public class P22Node implements LogProducer {
 
     public static RawHttp rawHttp = new RawHttp();
 
@@ -66,7 +67,7 @@ public class P22Node implements LogProducer{
             Socket socket = socketWithP21.accept(); //waits for new connection/request
 
             print("new request from P21...");
-            Thread thread = new Thread(()-> handleRequest(socket));
+            Thread thread = new Thread(() -> handleRequest(socket));
 
 
             // Key a reference to each thread so they can be joined later if necessary
@@ -94,8 +95,7 @@ public class P22Node implements LogProducer{
     }
 
 
-
-    public void handleRequest(Socket p21Socket){
+    public void handleRequest(Socket p21Socket) {
         try {
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(p21Socket.getInputStream()));
             String request = bufferedReader.readLine();
@@ -105,28 +105,33 @@ public class P22Node implements LogProducer{
             RawHttpRequest rawHttpRequest = rawHttp.parseRequest(request);
             URI uri = rawHttpRequest.getUri();
 
-            //request to external server
+
+            print("Request to external server...");
             Socket outSocket = new Socket(uri.getHost(), 80);
 
             rawHttpRequest.writeTo(outSocket.getOutputStream());
 
-
+            print("Waiting response...");
             RawHttpResponse<?> response = rawHttp.parseResponse(outSocket.getInputStream());
 
             // call "eagerly()" in order to download the body
             EagerHttpResponse<?> eagerResponse = response.eagerly();
-            print("RESPONSE: "+eagerResponse.toString());
+            String resp = eagerResponse.toString();
+            print("RESPONSE: " + resp);
 
 
+            print("Sending response to P21...");
+            PrintWriter p21Out = new PrintWriter(p21Socket.getOutputStream(), true);
+            p21Out.println(resp);
+            p21Out.println("cicciobaubaubenzina");
+            print("Response sent.");
 
         } catch (IOException e) {
             e.printStackTrace();
-        }finally {
+        } finally {
             activeThreads.remove(Thread.currentThread());
         }
     }
-
-
 
 
 }

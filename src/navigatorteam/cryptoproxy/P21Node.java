@@ -11,6 +11,7 @@ import java.net.SocketTimeoutException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Created on 2019-07-22.
@@ -20,6 +21,7 @@ public class P21Node implements LogProducer{
     private final ServerSocket socketWithP1;
     private final Socket socketWithP22;
 
+    private CryptoServiceProvider crypto = null;
 
     private boolean listen = false;
     private final Set<Thread> activeThreads = Collections.synchronizedSet(new HashSet<>());
@@ -33,6 +35,10 @@ public class P21Node implements LogProducer{
         try {
             P21Node p21Node = new P21Node(Consts.P21Port);
 
+            p21Node.waitForAuth();
+
+            p21Node.initCrypto();
+
             p21Node.startListening();
         } catch (SocketException se) {
             System.out.println("Socket Exception when connecting to client");
@@ -42,6 +48,15 @@ public class P21Node implements LogProducer{
         } catch (IOException io) {
             System.out.println("IO exception when connecting to client");
         }
+    }
+
+    private void initCrypto() {
+        // TODO: implement
+        crypto = new DummyCrypto();
+    }
+
+    private void waitForAuth() {
+        // TODO: implement
     }
 
 
@@ -98,11 +113,33 @@ public class P21Node implements LogProducer{
             BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
             String s = bufferedReader.readLine();
 
-            print(s);
+            print("Decrypting...");
+            String c = crypto.decrypt(s);
 
-
+            print(c);
+            print("Sending to P22...");
             PrintWriter out = new PrintWriter(socketWithP22.getOutputStream(), true);
-            out.println(s);
+            out.println(c);
+            print("Sent.");
+
+            print("Waiting response from P22...");
+            BufferedReader p22In = new BufferedReader(new InputStreamReader(socketWithP22.getInputStream()));
+
+            String resp = "";
+            String line = "";
+            while((line = p22In.readLine())!=null ){
+                //TODO work in progress.
+            }
+
+
+            print("RESPONSE: "+resp);
+
+            print("Encrypting response...");
+            String resp_crypt = crypto.encrypt(resp);
+            print("Sending response to P1...");
+            PrintWriter outP1 = new PrintWriter(clientSocket.getOutputStream(), true);
+            outP1.println(resp_crypt);
+            print("Response sent.");
 
         } catch (IOException e) {
             e.printStackTrace();
