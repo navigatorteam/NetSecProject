@@ -15,6 +15,7 @@ import rawhttp.core.server.TcpRawHttpServer;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -100,10 +101,10 @@ public class P1Http implements LogProducer {
                 //con.setRequestProperty("Content-Type", "application/json");
                 ReqContainer reqC = new ReqContainer(req);
                 String jsonReq = gson.toJson(reqC);
-                System.out.println(jsonReq);
+                System.out.println("---> "+jsonReq);
                 //TODO encrypt
                 String b64Req = Base64.getEncoder().encodeToString(jsonReq.getBytes());
-                byte[] outputInBytes = b64Req.getBytes("UTF-8");
+                byte[] outputInBytes = b64Req.getBytes(StandardCharsets.UTF_8);
                 con.setUseCaches(false);
                 con.setDoOutput(true);
 
@@ -116,32 +117,43 @@ public class P1Http implements LogProducer {
                 p2out.close();
 
 
-                int status = con.getResponseCode();
-                InputStream inFromP2;
+                InputStream is = null;
 
-                if (status > 299) {
-                    inFromP2 = con.getErrorStream();
+                if (con.getResponseCode() > 299) {
+                    is = con.getErrorStream();
                 } else {
-                    inFromP2 = con.getInputStream();
+                    is = con.getInputStream();
                 }
 
-                RawHttpResponse<Void> httpResponse = rawHttp.parseResponse(inFromP2).eagerly();
-                Optional<? extends BodyReader> body = httpResponse.getBody();
-                if (body.isPresent()) {
-                    EagerBodyReader bodyReader = body.get().eager();
-                    String b64Resp = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
-                    //TODO decrypt
-                    String jsonResp = new String(Base64.getDecoder().decode(b64Resp));
-                    System.out.println("<--- "+jsonResp);
-//                    RawHttpResponse<Void> dummy =  rawHttp.parseResponse("HTTP/1.1 200 OK\n" +
-//                            "Content-Type: text/plain"
-//                    ).withBody(new StringBody("Hello RawHTTP!"));
-                    RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
 
-                    return Optional.ofNullable(resp.getResponse(rawHttp));
-                } else {
-                    return Optional.of(httpResponse);
+                StringBuilder content = new StringBuilder();
+                byte[] buf = new byte[512];
+
+                while(true){
+                    int bytesRead = is.read(buf, 0, 512);
+                    if(bytesRead <= 0){
+                        break;
+                    }
+                    String s = new String(Arrays.copyOfRange(buf,0, bytesRead), StandardCharsets.UTF_8);
+                    content.append(s);
                 }
+
+
+                System.out.println(content.toString());
+
+
+
+
+
+                String b64Resp = content.toString();
+                //TODO decrypt
+                String jsonResp = new String(Base64.getDecoder().decode(b64Resp));
+                System.out.println("<--- "+jsonResp);
+
+                RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
+
+                return Optional.ofNullable(resp.getResponse(rawHttp));
+
 
                 //String contentType = con.getHeaderField("Content-Type");
                 //con.setConnectTimeout(5000);

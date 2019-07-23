@@ -14,6 +14,7 @@ import rawhttp.core.server.TcpRawHttpServer;
 import java.io.*;
 import java.net.*;
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -104,13 +105,14 @@ public class P2Http implements LogProducer {
                     System.out.println("<--- "+jsonResp);
                     //todo encrypt
                     String b64Resp = Base64.getEncoder().encodeToString(jsonResp.getBytes());
-                    String utf8Resp = URLEncoder.encode(b64Resp, "UTF-8");
-                    RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("HTTP/1.1 200 OK\n" +
+
+                    String utf8Resp = new String(b64Resp.getBytes(StandardCharsets.UTF_8));
+                    RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("200 OK\n" +
                             "Content-Length: " + utf8Resp.length() + "\n" +
                             "\n" +
                             utf8Resp);
                     System.out.println(rawHttpResponse.toString());
-                    return Optional.ofNullable(rawHttpResponse);
+                    return Optional.of(rawHttpResponse);
 
                 }
 
