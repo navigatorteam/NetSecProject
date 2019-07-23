@@ -47,13 +47,13 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
     @Override
     public String encrypt(String input) {
         SymmetricKey sharedKey = new SharedKey(generateSharedKey());
-        String encryptedRequest = encryptSymmetric(input, sharedKey, "Encrypt");
-        String decryptedRequest = encryptSymmetric(encryptedRequest, sharedKey, "Decrypt");
+        byte[] encryptedRequest = encryptSymmetric(input.getBytes(), sharedKey, "Encrypt");
         BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
         otherEntityPublicKey = new RSAKey(publicKey.getExponent(), publicKey.getModulus());
         byte[] encryptedKey = keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray();
-        ExchangedObject messageToSend = new ExchangedObject(Base64.getEncoder().encode(encryptedRequest.getBytes()), Base64.getEncoder().encode(encryptedKey));
+        ExchangedObject messageToSend = new ExchangedObject(Base64.getEncoder().encode(encryptedRequest), Base64.getEncoder().encode(encryptedKey));
         return gson.toJson(messageToSend);
+
     }
 
     @Override
@@ -62,11 +62,11 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         BigInteger keyBigInteger = new BigInteger(1, Base64.getDecoder().decode(messageReceived.encryptedSharedKey.getBytes()));
         String decryptedKey = new String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
         SymmetricKey sharedKey = new SharedKey(decryptedKey);
-        String decryptedRequest = encryptSymmetric(Arrays.toString(Base64.getDecoder().decode(messageReceived.encryptedRequest.getBytes())), sharedKey, "Decrypt");
-        return decryptedRequest;
+        byte[] decryptedRequest = encryptSymmetric(Base64.getDecoder().decode(messageReceived.encryptedRequest), sharedKey, "Decrypt");
+        return new String(decryptedRequest);
     }
 
-    private String encryptSymmetric(String input, SymmetricKey key, String cipherMode)
+    private byte[] encryptSymmetric(byte[] input, SymmetricKey key, String cipherMode)
     {
         String algorithm = "AES";
         String mode = "ECB";
@@ -84,7 +84,7 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
                     cipherToUse.init(Cipher.ENCRYPT_MODE, secretKeyToUse);
                 else if(cipherMode.equals("Decrypt"))
                     cipherToUse.init(Cipher.DECRYPT_MODE, secretKeyToUse);
-                return new String(cipherToUse.doFinal(input.getBytes()));
+                return cipherToUse.doFinal(input);
             }
         } catch (InvalidKeyException | IllegalBlockSizeException | BadPaddingException e1) {
             e1.printStackTrace();
