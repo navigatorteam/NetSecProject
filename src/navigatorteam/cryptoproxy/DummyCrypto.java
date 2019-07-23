@@ -1,5 +1,7 @@
 package navigatorteam.cryptoproxy;
 
+import java.math.BigInteger;
+
 /**
  * Created on 2019-07-22.
  */

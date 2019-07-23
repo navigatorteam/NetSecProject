@@ -3,18 +3,12 @@ package navigatorteam.cryptoproxy;
 
 import com.google.gson.Gson;
 import rawhttp.core.RawHttp;
-import rawhttp.core.RawHttpRequest;
 import rawhttp.core.RawHttpResponse;
-import rawhttp.core.body.BodyReader;
-import rawhttp.core.body.EagerBodyReader;
 import rawhttp.core.body.StringBody;
-import rawhttp.core.client.RawHttpClient;
-import rawhttp.core.client.TcpRawHttpClient;
 import rawhttp.core.server.TcpRawHttpServer;
 
 import java.io.*;
 import java.net.*;
-import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.logging.Logger;
@@ -44,11 +38,7 @@ public class P1Http implements LogProducer {
         try {
             P1Http p1Node = new P1Http(ConstsAndUtils.P1Port);
 
-
-
             p1Node.auth();
-
-
 
             p1Node.startListening();
 
@@ -67,8 +57,11 @@ public class P1Http implements LogProducer {
 
     public P1Http(int port) {
         httpServer = new TcpRawHttpServer(port);
-        crypto = new CryptoServiceImplementation();
-
+        if(ConstsAndUtils.PLAINTEXT_MODE) {
+            crypto = new DummyCrypto();
+        } else {
+            crypto = new CryptoServiceImplementation();
+        }
         //serverSocketWithClient.setSoTimeout(100000);	//if needed to add timeout
         Logger.getLogger(getLoggerName()).info("Port: " + port);
 
@@ -80,7 +73,8 @@ public class P1Http implements LogProducer {
         try {
 
 
-            URL url = new URL("http://" + ConstsAndUtils.P21Host + ":" + ConstsAndUtils.P21Port + "/auth");
+
+            URL url = new URL("http://" + ConstsAndUtils.P2Host + ":" + ConstsAndUtils.P2Port + "/auth");
             HttpURLConnection con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("POST");
 
@@ -153,7 +147,7 @@ public class P1Http implements LogProducer {
             try {
 
 
-                URL url = new URL("http://" + ConstsAndUtils.P21Host + ":" + ConstsAndUtils.P21Port + "/");
+                URL url = new URL("http://" + ConstsAndUtils.P2Host + ":" + ConstsAndUtils.P2Port + "/");
                 //open connection with P2
                 HttpURLConnection con = (HttpURLConnection) url.openConnection();
 

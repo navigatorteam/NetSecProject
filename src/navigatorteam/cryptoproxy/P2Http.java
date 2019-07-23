@@ -43,7 +43,7 @@ public class P2Http implements LogProducer {
 
     public static void main(String args[]) {
         try {
-            P2Http p2node = new P2Http(ConstsAndUtils.P21Port);
+            P2Http p2node = new P2Http(ConstsAndUtils.P2Port);
 
 
             p2node.waitForAuth();
@@ -73,7 +73,11 @@ public class P2Http implements LogProducer {
         //serverSocketWithP1.setSoTimeout(100000);	//if needed to add timeout
         Logger.getLogger(getLoggerName()).info("Port: " + port);
 
-        crypto = new CryptoServiceImplementation();
+        if(ConstsAndUtils.PLAINTEXT_MODE) {
+            crypto = new DummyCrypto();
+        } else {
+            crypto = new CryptoServiceImplementation();
+        }
 
     }
 
