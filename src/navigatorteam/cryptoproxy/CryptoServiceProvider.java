@@ -8,7 +8,7 @@ import java.math.BigInteger;
 public interface CryptoServiceProvider {
     String encrypt(String input);
 
-    String decrypt(String input);
+    String decrypt(String input) throws IntegrityCheckFailedException;
 
     void generateKeys();
 
