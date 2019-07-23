@@ -49,7 +49,7 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         SymmetricKey sharedKey = new SharedKey(generateSharedKey());
         byte[] encryptedRequest = encryptSymmetric(input.getBytes(), sharedKey, "Encrypt");
         BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
-        otherEntityPublicKey = new RSAKey(publicKey.getExponent(), publicKey.getModulus());
+        //otherEntityPublicKey = new RSAKey(publicKey.getExponent(), publicKey.getModulus());
         byte[] encryptedKey = keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray();
         ExchangedObject messageToSend = new ExchangedObject(Base64.getEncoder().encode(encryptedRequest), Base64.getEncoder().encode(encryptedKey));
         return gson.toJson(messageToSend);
