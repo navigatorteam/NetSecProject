@@ -26,30 +26,42 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
 
     //TODO settare la chiave otherEntityPublicKey
 
+
     @Override
-    public String encrypt(String input) {
-        sharedKey = new SharedKey(generateSharedKey());
-        //TODO String encryptedRequest = encryptSymmetric(input);
-        BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
-        String encryptedKey = String(keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray());
-        //TODO integrità
-        message = new ExchangedObject(encryptedRequest, encryptedKey);
-        //TODO returnare il messaggio (.toString per json)
+    public ExchangedObject encrypt(String input) {
         return null;
     }
 
     @Override
     public String decrypt(String input) {
-        //TODO deserializza l'oggetto / json
-        ExchangedObject messageRecv= new ExchangedObject("","");
-        BigInteger keyBigInteger = new BigInteger(1, messageRecv.encryptedSharedKey.getBytes());
-        String decryptedKey = String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
-        //TODO settare in sharedkey il campo chiave
-        //String decryptedRequest= decryptSymmetric(messageRecv.encryptedRequest);
-        //Return decryptedRequest
-        return null
+        return null;
     }
 
+    /* ho dovuto commentare perché non compilava
+        @Override
+        public String encrypt(String input) {
+            sharedKey = new SharedKey(generateSharedKey());
+            //TODO String encryptedRequest = encryptSymmetric(input);
+            BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
+            String encryptedKey = new  String(keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray());
+            //TODO integrità
+            message = new ExchangedObject(encryptedRequest, encryptedKey);
+            //TODO returnare il messaggio (.toString per json)
+            return null;
+        }
+
+        @Override
+        public String decrypt(String input) {
+            //TODO deserializza l'oggetto / json
+            ExchangedObject messageRecv= new ExchangedObject("","");
+            BigInteger keyBigInteger = new BigInteger(1, messageRecv.encryptedSharedKey.getBytes());
+            String decryptedKey = new String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
+            //TODO settare in sharedkey il campo chiave
+            //String decryptedRequest= decryptSymmetric(messageRecv.encryptedRequest);
+            //Return decryptedRequest
+            return null
+        }
+    */
     @Override
     public void generateKeys() {
         generateRandomPrimes();
@@ -60,6 +72,7 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         privateKey = new RSAKey(d, n);
     }
 
+    /*
     private String generateSharedKey() {
         KeyGenerator keyGen = null;
         keyGen = KeyGenerator.getInstance("AES");
@@ -67,6 +80,8 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         SecretKey secretKey = keyGen.generateKey();
         return Base64.getEncoder().encodeToString(secretKey.getEncoded());
     }
+    *
+     */
 
     private void generateRandomPrimes()
     {

@@ -1,6 +1,8 @@
 package navigatorteam.cryptoproxy;
 
 
+import com.google.gson.Gson;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -14,6 +16,8 @@ import java.util.logging.Logger;
 public class P1Node implements LogProducer {
 
     //public static RawHttp rawHttp = new RawHttp();
+    public static Gson gson = new Gson();
+
 
     private final ServerSocket serverSocketWithClient;
 
@@ -118,7 +122,7 @@ public class P1Node implements LogProducer {
             PrintWriter p21out = new PrintWriter(p21Socket.getOutputStream(), true);
             Pipe pipeClientToP21 = new Pipe(activeThreads, clientIn, p21out, s -> {
                 Logger.getLogger(getLoggerName()).info("REQ"+internalReqID+": ---> "+ s);
-                return crypto.encrypt(s);
+                return gson.toJson(crypto.encrypt(s));
             });
             activeThreads.add(pipeClientToP21);
 

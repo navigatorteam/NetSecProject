@@ -4,7 +4,7 @@ import java.math.BigInteger;
 
 public class SharedKey implements SymmetricKey {
 
-    private String Key;
+    private String key;
 
     public SharedKey(String k)
     {

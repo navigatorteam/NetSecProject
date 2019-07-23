@@ -6,8 +6,8 @@ package navigatorteam.cryptoproxy;
 public class DummyCrypto implements CryptoServiceProvider {
 
     @Override
-    public String encrypt(String input) {
-        return HexStrings.toHexString(input.getBytes());
+    public ExchangedObject encrypt(String input) {
+        return new ExchangedObject(HexStrings.toHexString(input.getBytes()), "");
     }
 
     @Override

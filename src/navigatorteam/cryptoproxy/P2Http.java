@@ -2,26 +2,32 @@ package navigatorteam.cryptoproxy;
 
 import com.google.gson.Gson;
 import rawhttp.core.RawHttp;
+import rawhttp.core.RawHttpRequest;
 import rawhttp.core.RawHttpResponse;
+import rawhttp.core.body.BodyReader;
+import rawhttp.core.body.EagerBodyReader;
+import rawhttp.core.body.StringBody;
+import rawhttp.core.client.RawHttpClient;
+import rawhttp.core.client.TcpRawHttpClient;
+import rawhttp.core.server.TcpRawHttpServer;
 
 import java.io.*;
 import java.net.*;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.nio.charset.Charset;
+import java.util.*;
 import java.util.logging.Logger;
 
 /**
  * Created on 2019-07-22.
  */
-public class P21Node implements LogProducer {
+public class P2Http implements LogProducer {
 
 
     public static RawHttp rawHttp = new RawHttp();
     public static Gson gson = new Gson();
 
-    private final ServerSocket serverSocketWithP1;
-
+    //private final ServerSocket serverSocketWithP1;
+    private TcpRawHttpServer httpServer;
 
     private CryptoServiceProvider crypto = null;
 
@@ -35,7 +41,7 @@ public class P21Node implements LogProducer {
 
     public static void main(String args[]) {
         try {
-            P21Node p21Node = new P21Node(ConstsAndUtils.P21Port);
+            P2Http p21Node = new P2Http(ConstsAndUtils.P21Port);
 
             p21Node.waitForAuth();
 
@@ -62,12 +68,12 @@ public class P21Node implements LogProducer {
     }
 
 
-    public P21Node(int port) throws IOException {
-        serverSocketWithP1 = new ServerSocket(port);
-
+    public P2Http(int port) throws IOException {
+        //serverSocketWithP1 = new ServerSocket(port);
+        httpServer = new TcpRawHttpServer(port);
 
         //serverSocketWithP1.setSoTimeout(100000);	//if needed to add timeout
-        Logger.getLogger(getLoggerName()).info("Port: " + serverSocketWithP1.getLocalPort());
+        Logger.getLogger(getLoggerName()).info("Port: " + port);
 
 
     }
@@ -77,19 +83,52 @@ public class P21Node implements LogProducer {
         Logger.getLogger(getLoggerName()).info("Started listening...");
         listen = true;
 
-        while (listen) {
-            Logger.getLogger(getLoggerName()).info("Waiting accept...");
-            Socket socket = serverSocketWithP1.accept(); //waits for new connection/request
+        httpServer.start(req -> {
+            try {
 
-            Logger.getLogger(getLoggerName()).info("new request from P1...");
+                Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
+                if(bodyReaderOpt.isPresent()){
+                    EagerBodyReader bodyReader = bodyReaderOpt.get().eager();
+                    String b64Req = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
+                    //TODO decrypt
+                    String jsonReq = new String(Base64.getDecoder().decode(b64Req));
+                    System.out.println("---> "+jsonReq);
+                    ReqContainer clientReq = gson.fromJson(jsonReq, ReqContainer.class);
 
-            Thread thread = new Thread(() -> handleRequest(socket, ConstsAndUtils.nextID()));
+                    RawHttpRequest rawClientReq = clientReq.getReq();
 
-            // Key a reference to each thread so they can be joined later if necessary
-            activeThreads.add(thread);
+                    RawHttpClient<Void> rawHttpClient = new TcpRawHttpClient();
+                    RawHttpResponse<Void> serverResp = rawHttpClient.send(rawClientReq).eagerly();
+                    RespContainer respContainer = new RespContainer(serverResp);
+                    String jsonResp = gson.toJson(respContainer);
+                    System.out.println("<--- "+jsonResp);
+                    //todo encrypt
+                    String b64Resp = Base64.getEncoder().encodeToString(jsonResp.getBytes());
+                    String utf8Resp = URLEncoder.encode(b64Resp, "UTF-8");
+                    RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("HTTP/1.1 200 OK\n" +
+                            "Content-Length: " + utf8Resp.length() + "\n" +
+                            "\n" +
+                            utf8Resp);
+                    System.out.println(rawHttpResponse.toString());
+                    return Optional.ofNullable(rawHttpResponse);
 
-            thread.start();
-        }
+                }
+
+
+
+
+            } catch (MalformedURLException e) {
+                e.printStackTrace();
+            } catch (ProtocolException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return Optional.ofNullable((RawHttpResponse<Void>) rawHttp.parseResponse("HTTP/1.1 500 Internal Server Error\n" +
+                    "Content-Type: text/plain"
+            ).withBody(new StringBody("Error in proxy server.")));
+
+        });
     }
 
 
@@ -106,7 +145,7 @@ public class P21Node implements LogProducer {
         }
 
 
-        serverSocketWithP1.close();
+        //serverSocketWithP1.close();
 
 
     }
