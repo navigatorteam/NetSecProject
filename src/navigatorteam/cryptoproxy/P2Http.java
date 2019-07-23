@@ -32,6 +32,7 @@ public class P2Http implements LogProducer {
 
     private CryptoServiceProvider crypto = null;
 
+
     private boolean listen = false;
     private final Set<Thread> activeThreads = Collections.synchronizedSet(new HashSet<>());
 
@@ -42,13 +43,13 @@ public class P2Http implements LogProducer {
 
     public static void main(String args[]) {
         try {
-            P2Http p21Node = new P2Http(ConstsAndUtils.P21Port);
+            P2Http p2node = new P2Http(ConstsAndUtils.P21Port);
 
-            p21Node.waitForAuth();
 
-            p21Node.initCrypto();
+            p2node.waitForAuth();
 
-            p21Node.startListening();
+
+            p2node.startListening();
         } catch (SocketException se) {
             System.out.println("Socket Exception when connecting to client");
             se.printStackTrace();
@@ -59,10 +60,6 @@ public class P2Http implements LogProducer {
         }
     }
 
-    private void initCrypto() {
-        // TODO: implement
-        crypto = new DummyCrypto();
-    }
 
     private void waitForAuth() {
         // TODO: implement
@@ -76,6 +73,7 @@ public class P2Http implements LogProducer {
         //serverSocketWithP1.setSoTimeout(100000);	//if needed to add timeout
         Logger.getLogger(getLoggerName()).info("Port: " + port);
 
+        crypto = new CryptoServiceImplementation();
 
     }
 
@@ -85,46 +83,73 @@ public class P2Http implements LogProducer {
         listen = true;
 
         httpServer.start(req -> {
-            try {
 
-                Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
-                if(bodyReaderOpt.isPresent()){
-                    EagerBodyReader bodyReader = bodyReaderOpt.get().eager();
-                    String b64Req = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
-                    String cryptedReq = new String(Base64.getDecoder().decode(b64Req));
-                    String jsonReq = crypto.decrypt(cryptedReq);
-                    System.out.println("---> "+jsonReq);
-                    ReqContainer clientReq = gson.fromJson(jsonReq, ReqContainer.class);
+            if (req.getUri().toString().endsWith("/auth")) {
+                try {
+                    Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
+                    if (bodyReaderOpt.isPresent()) {
+                        EagerBodyReader bodyReader = null;
+                        bodyReader = bodyReaderOpt.get().eager();
+                        String jsonReq = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
+                        System.out.println("---> " + jsonReq);
+                        AsymmetricKey otherpartyPublicKey = gson.fromJson(jsonReq, RSAKey.class);
 
-                    RawHttpRequest rawClientReq = clientReq.getReq();
+                        crypto.setOtherEntityPublicKey(otherpartyPublicKey);
+                        crypto.generateKeys();
+                        AsymmetricKey publicKey = crypto.getPublicKey();
+                        String jsonResp = gson.toJson(publicKey);
+                        System.out.println("<--- "+jsonResp);
+                        RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("200 OK\n" +
+                                "Content-Length: " + jsonResp.length() + "\n" +
+                                "\n" +
+                                jsonResp);
 
-                    RawHttpClient<Void> rawHttpClient = new TcpRawHttpClient();
-                    RawHttpResponse<Void> serverResp = rawHttpClient.send(rawClientReq).eagerly();
-                    RespContainer respContainer = new RespContainer(serverResp);
-                    String jsonResp = gson.toJson(respContainer);
-                    System.out.println("<--- "+jsonResp);
-                    String cryptedResp = crypto.encrypt(jsonResp);
-                    String b64Resp = Base64.getEncoder().encodeToString(cryptedResp.getBytes());
+                        return Optional.of(rawHttpResponse);
 
-                    String utf8Resp = new String(b64Resp.getBytes(StandardCharsets.UTF_8));
-                    RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("200 OK\n" +
-                            "Content-Length: " + utf8Resp.length() + "\n" +
-                            "\n" +
-                            utf8Resp);
-                    System.out.println(rawHttpResponse.toString());
-                    return Optional.of(rawHttpResponse);
-
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
                 }
+            } else {
+                try {
+
+                    Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
+                    if (bodyReaderOpt.isPresent()) {
+                        EagerBodyReader bodyReader = bodyReaderOpt.get().eager();
+                        String b64Req = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
+                        String cryptedReq = new String(Base64.getDecoder().decode(b64Req));
+                        String jsonReq = crypto.decrypt(cryptedReq);
+                        System.out.println("---> " + jsonReq);
+                        ReqContainer clientReq = gson.fromJson(jsonReq, ReqContainer.class);
+
+                        RawHttpRequest rawClientReq = clientReq.getReq();
+
+                        RawHttpClient<Void> rawHttpClient = new TcpRawHttpClient();
+                        RawHttpResponse<Void> serverResp = rawHttpClient.send(rawClientReq).eagerly();
+                        RespContainer respContainer = new RespContainer(serverResp);
+                        String jsonResp = gson.toJson(respContainer);
+                        System.out.println("<--- " + jsonResp);
+                        String cryptedResp = crypto.encrypt(jsonResp);
+                        String b64Resp = Base64.getEncoder().encodeToString(cryptedResp.getBytes());
+
+                        String utf8Resp = new String(b64Resp.getBytes(StandardCharsets.UTF_8));
+                        RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("200 OK\n" +
+                                "Content-Length: " + utf8Resp.length() + "\n" +
+                                "\n" +
+                                utf8Resp);
+                        System.out.println(rawHttpResponse.toString());
+                        return Optional.of(rawHttpResponse);
+
+                    }
 
 
-
-
-            } catch (MalformedURLException e) {
-                e.printStackTrace();
-            } catch (ProtocolException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
+                } catch (MalformedURLException e) {
+                    e.printStackTrace();
+                } catch (ProtocolException e) {
+                    e.printStackTrace();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
             return Optional.ofNullable((RawHttpResponse<Void>) rawHttp.parseResponse("HTTP/1.1 500 Internal Server Error\n" +
                     "Content-Type: text/plain"

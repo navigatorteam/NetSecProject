@@ -39,13 +39,16 @@ public class P1Http implements LogProducer {
         return "P1";
     }
 
+
     public static void main(String args[]) {
         try {
             P1Http p1Node = new P1Http(ConstsAndUtils.P1Port);
 
+
+
             p1Node.auth();
 
-            p1Node.initCrypto(/*args*/);
+
 
             p1Node.startListening();
 
@@ -61,25 +64,83 @@ public class P1Http implements LogProducer {
         }
     }
 
-    private void auth() {
-        //TODO implement
-    }
-
-    private void initCrypto() {
-        //TODO implement with correct crypto
-        crypto = new DummyCrypto();
-    }
-
 
     public P1Http(int port) {
         httpServer = new TcpRawHttpServer(port);
-
+        crypto = new CryptoServiceImplementation();
 
         //serverSocketWithClient.setSoTimeout(100000);	//if needed to add timeout
         Logger.getLogger(getLoggerName()).info("Port: " + port);
 
 
     }
+
+    private void auth() {
+
+        try {
+
+
+            URL url = new URL("http://" + ConstsAndUtils.P21Host + ":" + ConstsAndUtils.P21Port + "/auth");
+            HttpURLConnection con = (HttpURLConnection) url.openConnection();
+            con.setRequestMethod("POST");
+
+            crypto.generateKeys();
+            AsymmetricKey publicKey = crypto.getPublicKey();
+            String jsonReq = gson.toJson(publicKey);
+            System.out.println("---> "+jsonReq);
+            byte[] outputInBytes = jsonReq.getBytes(StandardCharsets.UTF_8);
+
+            con.setUseCaches(false);
+            con.setDoOutput(true);
+
+            OutputStream p2out = con.getOutputStream();
+            p2out.write(outputInBytes);
+            p2out.flush();
+            p2out.close();
+
+
+            InputStream is = null;
+
+            if (con.getResponseCode() > 299) {
+                is = con.getErrorStream();
+            } else {
+                is = con.getInputStream();
+            }
+
+
+            StringBuilder content = new StringBuilder();
+            byte[] buf = new byte[512];
+
+            while(true){
+                int bytesRead = is.read(buf, 0, 512);
+                if(bytesRead <= 0){
+                    break;
+                }
+                String s = new String(Arrays.copyOfRange(buf,0, bytesRead), StandardCharsets.UTF_8);
+                content.append(s);
+            }
+
+
+
+
+            String jsonResp = content.toString();;
+            System.out.println("<--- "+jsonResp);
+
+            AsymmetricKey resp = gson.fromJson(jsonResp, RSAKey.class);
+            crypto.setOtherEntityPublicKey(resp);
+            con.disconnect();
+
+        } catch (MalformedURLException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+
+
+
 
 
     private void startListening() throws IOException {
@@ -107,9 +168,6 @@ public class P1Http implements LogProducer {
                 byte[] outputInBytes = b64Req.getBytes(StandardCharsets.UTF_8);
                 con.setUseCaches(false);
                 con.setDoOutput(true);
-
-
-
 
                 OutputStream p2out = con.getOutputStream();
                 p2out.write(outputInBytes);
@@ -151,7 +209,7 @@ public class P1Http implements LogProducer {
                 System.out.println("<--- "+jsonResp);
 
                 RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
-
+                con.disconnect();
                 return Optional.ofNullable(resp.getResponse(rawHttp));
 
 
