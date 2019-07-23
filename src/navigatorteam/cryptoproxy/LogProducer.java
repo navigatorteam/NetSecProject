@@ -7,15 +7,12 @@ import java.util.logging.Logger;
  */
 public interface LogProducer {
 
-    String getLoggerName();
-
-
-    default void printErr(String text){
-        Logger.getLogger(getLoggerName()).severe(text);
+    default String getLoggerName(){
+        return "navigatorteam.cryptoproxy";
     }
 
-    default void printException(String sourceClass, String method, Throwable e){
-        Logger.getLogger(getLoggerName()).throwing(sourceClass, method, e);
+    default Logger log(){
+        return Logger.getLogger(getLoggerName());
     }
 
 

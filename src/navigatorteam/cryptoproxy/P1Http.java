@@ -11,7 +11,7 @@ import java.io.*;
 import java.net.*;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.logging.Logger;
+
 
 public class P1Http implements LogProducer {
 
@@ -20,18 +20,8 @@ public class P1Http implements LogProducer {
 
 
     private TcpRawHttpServer httpServer;
-
-
     private CryptoServiceProvider crypto = null;
 
-
-    private boolean listen = false;
-    private final Set<Thread> activeThreads = Collections.synchronizedSet(new HashSet<>());
-
-    @Override
-    public String getLoggerName() {
-        return "P1";
-    }
 
 
     public static void main(String args[]) {
@@ -57,13 +47,13 @@ public class P1Http implements LogProducer {
 
     public P1Http(int port) {
         httpServer = new TcpRawHttpServer(port);
-        if(ConstsAndUtils.PLAINTEXT_MODE) {
+        if (ConstsAndUtils.PLAINTEXT_MODE) {
             crypto = new DummyCrypto();
         } else {
             crypto = new CryptoServiceImplementation();
         }
-        //serverSocketWithClient.setSoTimeout(100000);	//if needed to add timeout
-        Logger.getLogger(getLoggerName()).info("Port: " + port);
+
+        log().info("Port: " + port);
 
 
     }
@@ -73,7 +63,6 @@ public class P1Http implements LogProducer {
         try {
 
 
-
             URL url = new URL("http://" + ConstsAndUtils.P2Host + ":" + ConstsAndUtils.P2Port + "/auth");
             HttpURLConnection con = (HttpURLConnection) url.openConnection();
             con.setRequestMethod("POST");
@@ -81,7 +70,7 @@ public class P1Http implements LogProducer {
             crypto.generateKeys();
             AsymmetricKey publicKey = crypto.getPublicKey();
             String jsonReq = gson.toJson(publicKey);
-            System.out.println("---> "+jsonReq);
+            log().info("AUTH: ---> " + jsonReq);
             byte[] outputInBytes = jsonReq.getBytes(StandardCharsets.UTF_8);
 
             con.setUseCaches(false);
@@ -105,25 +94,25 @@ public class P1Http implements LogProducer {
             StringBuilder content = new StringBuilder();
             byte[] buf = new byte[512];
 
-            while(true){
+            while (true) {
                 int bytesRead = is.read(buf, 0, 512);
-                if(bytesRead <= 0){
+                if (bytesRead <= 0) {
                     break;
                 }
-                String s = new String(Arrays.copyOfRange(buf,0, bytesRead), StandardCharsets.UTF_8);
+                String s = new String(Arrays.copyOfRange(buf, 0, bytesRead), StandardCharsets.UTF_8);
                 content.append(s);
             }
 
 
-
-
-            String jsonResp = content.toString();;
-            System.out.println("<--- "+jsonResp);
+            String jsonResp = content.toString();
+            ;
+            log().info("AUTH: <--- " + jsonResp);
 
             AsymmetricKey resp = gson.fromJson(jsonResp, RSAKey.class);
             crypto.setOtherEntityPublicKey(resp);
             con.disconnect();
 
+            log().info("End auth phase.");
         } catch (MalformedURLException e) {
             e.printStackTrace();
         } catch (IOException e) {
@@ -133,19 +122,13 @@ public class P1Http implements LogProducer {
     }
 
 
-
-
-
-
     private void startListening() throws IOException {
-        Logger.getLogger(getLoggerName()).info("Started P1 Server...");
-
-
-
+        log().info("Started P1 Server...");
 
         httpServer.start(req -> {
             try {
-
+                int id = ConstsAndUtils.nextID();
+                log().info("Got http request from client. LogID = "+id);
 
                 URL url = new URL("http://" + ConstsAndUtils.P2Host + ":" + ConstsAndUtils.P2Port + "/");
                 //open connection with P2
@@ -156,7 +139,7 @@ public class P1Http implements LogProducer {
                 //con.setRequestProperty("Content-Type", "application/json");
                 ReqContainer reqC = new ReqContainer(req);
                 String jsonReq = gson.toJson(reqC);
-                System.out.println("---> "+jsonReq);
+                log().info("REQ"+id+": ---> " + jsonReq);
                 String cryptedReq = crypto.encrypt(jsonReq);
                 String b64Req = Base64.getEncoder().encodeToString(cryptedReq.getBytes());
                 byte[] outputInBytes = b64Req.getBytes(StandardCharsets.UTF_8);
@@ -181,28 +164,26 @@ public class P1Http implements LogProducer {
                 StringBuilder content = new StringBuilder();
                 byte[] buf = new byte[512];
 
-                while(true){
+                while (true) {
                     int bytesRead = is.read(buf, 0, 512);
-                    if(bytesRead <= 0){
+                    if (bytesRead <= 0) {
                         break;
                     }
-                    String s = new String(Arrays.copyOfRange(buf,0, bytesRead), StandardCharsets.UTF_8);
+                    String s = new String(Arrays.copyOfRange(buf, 0, bytesRead), StandardCharsets.UTF_8);
                     content.append(s);
                 }
 
 
-                System.out.println(content.toString());
+                //log().info(content.toString());
 
                 String b64Resp = content.toString();
                 String cryptResp = new String(Base64.getDecoder().decode(b64Resp));
                 String jsonResp = crypto.decrypt(cryptResp);
-                System.out.println("<--- "+jsonResp);
+                log().info("RSP"+id+": <--- " + jsonResp);
 
                 RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
                 con.disconnect();
                 return Optional.ofNullable(resp.getResponse(rawHttp));
-
-
 
 
             } catch (MalformedURLException e) {
@@ -218,7 +199,6 @@ public class P1Http implements LogProducer {
         });
 
     }
-
 
 
 }

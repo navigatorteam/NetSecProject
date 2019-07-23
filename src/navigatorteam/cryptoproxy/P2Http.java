@@ -24,30 +24,20 @@ import java.util.logging.Logger;
 public class P2Http implements LogProducer {
 
 
-    public static RawHttp rawHttp = new RawHttp();
-    public static Gson gson = new Gson();
+    private static RawHttp rawHttp = new RawHttp();
+    private static Gson gson = new Gson();
 
-    //private final ServerSocket serverSocketWithP1;
+
     private TcpRawHttpServer httpServer;
-
     private CryptoServiceProvider crypto = null;
 
 
-    private boolean listen = false;
-    private final Set<Thread> activeThreads = Collections.synchronizedSet(new HashSet<>());
 
-    @Override
-    public String getLoggerName() {
-        return "P21";
-    }
+
 
     public static void main(String args[]) {
         try {
             P2Http p2node = new P2Http(ConstsAndUtils.P2Port);
-
-
-            p2node.waitForAuth();
-
 
             p2node.startListening();
         } catch (SocketException se) {
@@ -61,9 +51,7 @@ public class P2Http implements LogProducer {
     }
 
 
-    private void waitForAuth() {
-        // TODO: implement
-    }
+
 
 
     public P2Http(int port) throws IOException {
@@ -71,7 +59,7 @@ public class P2Http implements LogProducer {
         httpServer = new TcpRawHttpServer(port);
 
         //serverSocketWithP1.setSoTimeout(100000);	//if needed to add timeout
-        Logger.getLogger(getLoggerName()).info("Port: " + port);
+        log().info("Port: " + port);
 
         if(ConstsAndUtils.PLAINTEXT_MODE) {
             crypto = new DummyCrypto();
@@ -83,31 +71,31 @@ public class P2Http implements LogProducer {
 
 
     private void startListening() throws IOException {
-        Logger.getLogger(getLoggerName()).info("Started listening...");
-        listen = true;
+        log().info("Started listening...");
 
         httpServer.start(req -> {
 
             if (req.getUri().toString().endsWith("/auth")) {
                 try {
+                    log().info("Received auth request...");
                     Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
                     if (bodyReaderOpt.isPresent()) {
                         EagerBodyReader bodyReader = null;
                         bodyReader = bodyReaderOpt.get().eager();
                         String jsonReq = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
-                        System.out.println("---> " + jsonReq);
+                        log().info("AUTH: ---> " + jsonReq);
                         AsymmetricKey otherpartyPublicKey = gson.fromJson(jsonReq, RSAKey.class);
 
                         crypto.setOtherEntityPublicKey(otherpartyPublicKey);
                         crypto.generateKeys();
                         AsymmetricKey publicKey = crypto.getPublicKey();
                         String jsonResp = gson.toJson(publicKey);
-                        System.out.println("<--- "+jsonResp);
+                        log().info("AUTH: <--- "+jsonResp);
                         RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("200 OK\n" +
                                 "Content-Length: " + jsonResp.length() + "\n" +
                                 "\n" +
                                 jsonResp);
-
+                        log().info("End auth phase.");
                         return Optional.of(rawHttpResponse);
 
                     }
@@ -116,14 +104,15 @@ public class P2Http implements LogProducer {
                 }
             } else {
                 try {
-
+                    int id = ConstsAndUtils.nextID();
+                    log().info("Got http request from P1. LogID = "+id);
                     Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
                     if (bodyReaderOpt.isPresent()) {
                         EagerBodyReader bodyReader = bodyReaderOpt.get().eager();
                         String b64Req = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
                         String cryptedReq = new String(Base64.getDecoder().decode(b64Req));
                         String jsonReq = crypto.decrypt(cryptedReq);
-                        System.out.println("---> " + jsonReq);
+                        log().info("REQ"+id+": ---> " + jsonReq);
                         ReqContainer clientReq = gson.fromJson(jsonReq, ReqContainer.class);
 
                         RawHttpRequest rawClientReq = clientReq.getReq();
@@ -132,7 +121,7 @@ public class P2Http implements LogProducer {
                         RawHttpResponse<Void> serverResp = rawHttpClient.send(rawClientReq).eagerly();
                         RespContainer respContainer = new RespContainer(serverResp);
                         String jsonResp = gson.toJson(respContainer);
-                        System.out.println("<--- " + jsonResp);
+                        log().info("RSP"+id+": <--- " + jsonResp);
                         String cryptedResp = crypto.encrypt(jsonResp);
                         String b64Resp = Base64.getEncoder().encodeToString(cryptedResp.getBytes());
 
@@ -141,7 +130,7 @@ public class P2Http implements LogProducer {
                                 "Content-Length: " + utf8Resp.length() + "\n" +
                                 "\n" +
                                 utf8Resp);
-                        System.out.println(rawHttpResponse.toString());
+
                         return Optional.of(rawHttpResponse);
 
                     }
@@ -155,6 +144,9 @@ public class P2Http implements LogProducer {
                     e.printStackTrace();
                 }
             }
+
+
+            log().info("Something failed. Returning 500 to P1.");
             return Optional.ofNullable((RawHttpResponse<Void>) rawHttp.parseResponse("HTTP/1.1 500 Internal Server Error\n" +
                     "Content-Type: text/plain"
             ).withBody(new StringBody("Error in proxy server.")));
@@ -163,23 +155,7 @@ public class P2Http implements LogProducer {
     }
 
 
-    private void stopListeningAndClose() throws IOException {
 
-        listen = false;
-        synchronized (activeThreads) {
-            for (Thread t : activeThreads) {
-                if (t.isAlive()) {
-                    t.interrupt();
-                }
-            }
-            activeThreads.clear();
-        }
-
-
-        //serverSocketWithP1.close();
-
-
-    }
 
 
 }
