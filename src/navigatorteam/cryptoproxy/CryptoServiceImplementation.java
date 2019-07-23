@@ -7,6 +7,7 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
 import javax.crypto.*;
@@ -47,11 +48,11 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
     public String encrypt(String input) {
         SymmetricKey sharedKey = new SharedKey(generateSharedKey());
         String encryptedRequest = encryptSymmetric(input, sharedKey, "Encrypt");
+        String decryptedRequest = encryptSymmetric(encryptedRequest, sharedKey, "Decrypt");
         BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
         otherEntityPublicKey = new RSAKey(publicKey.getExponent(), publicKey.getModulus());
-        String encryptedKey = new String(keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray());
-        //TODO integrità
-        ExchangedObject messageToSend = new ExchangedObject(Base64.getEncoder().encode(encryptedRequest.getBytes()), Base64.getEncoder().encode(encryptedKey.getBytes()));
+        byte[] encryptedKey = keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray();
+        ExchangedObject messageToSend = new ExchangedObject(Base64.getEncoder().encode(encryptedRequest.getBytes()), Base64.getEncoder().encode(encryptedKey));
         return gson.toJson(messageToSend);
     }
 
@@ -61,7 +62,7 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         BigInteger keyBigInteger = new BigInteger(1, Base64.getDecoder().decode(messageReceived.encryptedSharedKey.getBytes()));
         String decryptedKey = new String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
         SymmetricKey sharedKey = new SharedKey(decryptedKey);
-        String decryptedRequest = encryptSymmetric(new String(Base64.getDecoder().decode(messageReceived.encryptedRequest.getBytes())), sharedKey, "Decrypt");
+        String decryptedRequest = encryptSymmetric(Arrays.toString(Base64.getDecoder().decode(messageReceived.encryptedRequest.getBytes())), sharedKey, "Decrypt");
         return decryptedRequest;
     }
 
