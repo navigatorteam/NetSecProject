@@ -194,8 +194,8 @@ public class P1Http implements LogProducer {
                 System.out.println(content.toString());
 
                 String b64Resp = content.toString();
-                String plainResp = crypto.decrypt(b64Resp);
-                String jsonResp = new String(Base64.getDecoder().decode(plainResp));
+                String cryptResp = new String(Base64.getDecoder().decode(b64Resp));
+                String jsonResp = crypto.decrypt(cryptResp);
                 System.out.println("<--- "+jsonResp);
 
                 RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
