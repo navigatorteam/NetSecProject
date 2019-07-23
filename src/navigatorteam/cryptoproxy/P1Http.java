@@ -102,14 +102,14 @@ public class P1Http implements LogProducer {
                 ReqContainer reqC = new ReqContainer(req);
                 String jsonReq = gson.toJson(reqC);
                 System.out.println("---> "+jsonReq);
-                //TODO encrypt
-                String b64Req = Base64.getEncoder().encodeToString(jsonReq.getBytes());
+                String cryptedReq = crypto.encrypt(jsonReq);
+                String b64Req = Base64.getEncoder().encodeToString(cryptedReq.getBytes());
                 byte[] outputInBytes = b64Req.getBytes(StandardCharsets.UTF_8);
                 con.setUseCaches(false);
                 con.setDoOutput(true);
 
 
-                //TODO is this the body?
+
 
                 OutputStream p2out = con.getOutputStream();
                 p2out.write(outputInBytes);
@@ -146,8 +146,8 @@ public class P1Http implements LogProducer {
 
 
                 String b64Resp = content.toString();
-                //TODO decrypt
-                String jsonResp = new String(Base64.getDecoder().decode(b64Resp));
+                String plainResp = crypto.decrypt(b64Resp);
+                String jsonResp = new String(Base64.getDecoder().decode(plainResp));
                 System.out.println("<--- "+jsonResp);
 
                 RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
@@ -155,22 +155,6 @@ public class P1Http implements LogProducer {
                 return Optional.ofNullable(resp.getResponse(rawHttp));
 
 
-                //String contentType = con.getHeaderField("Content-Type");
-                //con.setConnectTimeout(5000);
-                //con.setReadTimeout(5000);
-
-
-
-
-                /* //TODO recursive method to handle redirects
-                if (status == HttpURLConnection.HTTP_MOVED_TEMP
-                        || status == HttpURLConnection.HTTP_MOVED_PERM) {
-                    String location = con.getHeaderField("Location");
-                    URL newUrl = new URL(location);
-                    con = (HttpURLConnection) newUrl.openConnection();
-                }
-
-                 */
 
 
             } catch (MalformedURLException e) {
@@ -187,66 +171,6 @@ public class P1Http implements LogProducer {
 
     }
 
-/*
-    private void stopListeningAndClose() throws IOException {
-
-        listen = false;
-        synchronized (activeThreads) {
-            for (Thread t : activeThreads) {
-                if (t.isAlive()) {
-                    t.interrupt();
-                }
-            }
-            activeThreads.clear();
-        }
-
-
-        serverSocketWithClient.close();
-
-    }
-*/
-
-    //multithreaded
-    public void handleRequest(Socket clientSocket, int internalReqID) {
-        try (Socket p21Socket = new Socket(ConstsAndUtils.P21Host, ConstsAndUtils.P21Port)) {
-
-            BufferedReader clientIn = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-            PrintWriter p21out = new PrintWriter(p21Socket.getOutputStream(), true);
-            Pipe pipeClientToP21 = new Pipe(activeThreads, clientIn, p21out, s -> {
-                Logger.getLogger(getLoggerName()).info("REQ" + internalReqID + ": ---> " + s);
-                return gson.toJson(crypto.encrypt(s));
-            });
-            activeThreads.add(pipeClientToP21);
-
-            BufferedReader p21In = new BufferedReader(new InputStreamReader(p21Socket.getInputStream()));
-            PrintWriter clientOut = new PrintWriter(clientSocket.getOutputStream());
-            Pipe pipeP21toClient = new Pipe(activeThreads, p21In, clientOut, s -> {
-                String decS = crypto.decrypt(s);
-                Logger.getLogger(getLoggerName()).info("RSP" + internalReqID + ": <--- " + decS);
-                return decS;
-            });
-            activeThreads.add(pipeP21toClient);
-
-            pipeClientToP21.start();
-            pipeP21toClient.start();
-
-            pipeClientToP21.join();
-            pipeP21toClient.join();
-
-
-        } catch (IOException | InterruptedException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-
-                clientSocket.close();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-
-            activeThreads.remove(Thread.currentThread());
-        }
-    }
 
 
 }

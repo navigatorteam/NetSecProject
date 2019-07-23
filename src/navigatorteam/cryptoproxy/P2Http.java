@@ -91,8 +91,8 @@ public class P2Http implements LogProducer {
                 if(bodyReaderOpt.isPresent()){
                     EagerBodyReader bodyReader = bodyReaderOpt.get().eager();
                     String b64Req = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
-                    //TODO decrypt
-                    String jsonReq = new String(Base64.getDecoder().decode(b64Req));
+                    String cryptedReq = new String(Base64.getDecoder().decode(b64Req));
+                    String jsonReq = crypto.decrypt(cryptedReq);
                     System.out.println("---> "+jsonReq);
                     ReqContainer clientReq = gson.fromJson(jsonReq, ReqContainer.class);
 
@@ -103,8 +103,8 @@ public class P2Http implements LogProducer {
                     RespContainer respContainer = new RespContainer(serverResp);
                     String jsonResp = gson.toJson(respContainer);
                     System.out.println("<--- "+jsonResp);
-                    //todo encrypt
-                    String b64Resp = Base64.getEncoder().encodeToString(jsonResp.getBytes());
+                    String cryptedResp = crypto.encrypt(jsonResp);
+                    String b64Resp = Base64.getEncoder().encodeToString(cryptedResp.getBytes());
 
                     String utf8Resp = new String(b64Resp.getBytes(StandardCharsets.UTF_8));
                     RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("200 OK\n" +
@@ -152,117 +152,5 @@ public class P2Http implements LogProducer {
 
     }
 
-
-    //multithreaded
-//    public void handleRequest(Socket p1Socket, int internalReqID) {
-//        try (Socket p22Socket = new Socket(ConstsAndUtils.P22Host, ConstsAndUtils.P22Port)){
-//
-//            BufferedReader p1In = new BufferedReader(new InputStreamReader(p1Socket.getInputStream()));
-//            PrintWriter p22Out = new PrintWriter(p22Socket.getOutputStream());
-//
-//            Pipe p1ToP22Pipe = new Pipe(activeThreads, p1In, p22Out, s ->{
-//                String decS = crypto.decrypt(s);
-//                Logger.getLogger(getLoggerName()).info("REQ"+internalReqID+": ---> "+decS);
-//                return decS;
-//            });
-//            activeThreads.add(p1ToP22Pipe);
-//
-//            BufferedReader p22In = new BufferedReader(new InputStreamReader(p22Socket.getInputStream()));
-//            PrintWriter p1Out = new PrintWriter(p1Socket.getOutputStream());
-//
-//            Pipe p22ToP1Pipe = new Pipe(activeThreads, p22In, p1Out, s -> {
-//                Logger.getLogger(getLoggerName()).info("RSP"+internalReqID+": <--- "+s);
-//                return crypto.encrypt(s);
-//            });
-//
-//            activeThreads.add(p22ToP1Pipe);
-//
-//            p1ToP22Pipe.start();
-//            p22ToP1Pipe.start();
-//
-//            p1ToP22Pipe.join();
-//            p22ToP1Pipe.join();
-//
-//        } catch (IOException | InterruptedException e) {
-//            e.printStackTrace();
-//        } finally {
-//            try {
-//                p1Socket.close();
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//            activeThreads.remove(Thread.currentThread());
-//        }
-//
-//    }
-
-
-    public void handleRequest(Socket p1Socket, int internalReqID) {
-        HttpURLConnection proxyToServerCon = null;
-        try {
-            BufferedReader p21In = new BufferedReader(new InputStreamReader(p1Socket.getInputStream()));
-            String firstLine = crypto.decrypt(p21In.readLine());
-            System.out.println(firstLine);
-            if (firstLine != null) {
-                String url = firstLine.substring(firstLine.indexOf(' '));
-                url = url.substring(1);
-                url = url.substring(0, url.indexOf(' '));
-
-                Logger.getLogger(getLoggerName()).info("REQ" + internalReqID + ": connecting to '" + url + "'");
-
-                // Create the URL
-                URL remoteURL = new URL(url);
-                // Create a connection to remote server
-                proxyToServerCon = (HttpURLConnection) remoteURL.openConnection();
-                proxyToServerCon.setDoOutput(true);
-                PrintWriter serverOut = new PrintWriter(proxyToServerCon.getOutputStream());
-
-                Pipe p21ToServerPipe = new Pipe(activeThreads, p21In, serverOut, s -> {
-                    String decS = crypto.decrypt(s);
-                    Logger.getLogger(getLoggerName()).info("REQ" + internalReqID + ": ---> " + decS);
-                    return decS;
-                });
-                activeThreads.add(p21ToServerPipe);
-
-                BufferedReader serverIn = new BufferedReader(new InputStreamReader(proxyToServerCon.getInputStream()));
-                PrintWriter p21Out;
-                try {
-                    p21Out = new PrintWriter(p1Socket.getOutputStream());
-
-                    Pipe serverToP21Pipe = new Pipe(activeThreads, serverIn, p21Out, s -> {
-                        Logger.getLogger(getLoggerName()).info("RSP" + internalReqID + ": <--- " + s);
-                        return gson.toJson(crypto.encrypt(s));
-                    });
-                    activeThreads.add(serverToP21Pipe);
-
-                    serverOut.println(firstLine);
-                    p21ToServerPipe.start();
-                    serverToP21Pipe.start();
-
-                    p21ToServerPipe.join();
-                    serverToP21Pipe.join();
-                } catch (FileNotFoundException fnfe) {
-                    RawHttpResponse<Void> voidRawHttpResponse = rawHttp.parseResponse("HTTP/1.0 404 Not Found");
-                    voidRawHttpResponse.writeTo(p1Socket.getOutputStream());
-
-                }
-            }
-
-        } catch (IOException e) {
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } finally {
-            try {
-                p1Socket.close();
-                if (proxyToServerCon != null) {
-                    proxyToServerCon.disconnect();
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            activeThreads.remove(Thread.currentThread());
-        }
-    }
 
 }
