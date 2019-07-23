@@ -1,18 +1,24 @@
 package navigatorteam.cryptoproxy;
 
+import com.google.gson.Gson;
+
 import java.math.BigInteger;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Base64;
 import java.util.Random;
-import javax.crypto.KeyGenerator;
-import javax.crypto.SecretKey;
+import javax.crypto.*;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 
 public class CryptoServiceImplementation implements CryptoServiceProvider {
 
     private AsymmetricKey publicKey;
     private AsymmetricKey privateKey;
     private AsymmetricKey otherEntityPublicKey;
-    private SymmetricKey sharedKey;
-    private ExchangedObject message;
+    private Gson gson = new Gson();
     //TODO SymmetricKey
 
     private BigInteger p;
@@ -27,7 +33,7 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
     //TODO settare la chiave otherEntityPublicKey
 
 
-    @Override
+    /*@Override
     public ExchangedObject encrypt(String input) {
         return null;
     }
@@ -35,33 +41,56 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
     @Override
     public String decrypt(String input) {
         return null;
+    }*/
+
+    @Override
+    public String encrypt(String input) {
+        SymmetricKey sharedKey = new SharedKey(generateSharedKey());
+        String encryptedRequest = encryptSymmetric(input, sharedKey, "Encrypt");
+        BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
+        otherEntityPublicKey = new RSAKey(publicKey.getExponent(), publicKey.getModulus());
+        String encryptedKey = new String(keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray());
+        //TODO integrità
+        ExchangedObject messageToSend = new ExchangedObject(Base64.getEncoder().encode(encryptedRequest.getBytes()), Base64.getEncoder().encode(encryptedKey.getBytes()));
+        return gson.toJson(messageToSend);
     }
 
-    /* ho dovuto commentare perché non compilava
-        @Override
-        public String encrypt(String input) {
-            sharedKey = new SharedKey(generateSharedKey());
-            //TODO String encryptedRequest = encryptSymmetric(input);
-            BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
-            String encryptedKey = new  String(keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray());
-            //TODO integrità
-            message = new ExchangedObject(encryptedRequest, encryptedKey);
-            //TODO returnare il messaggio (.toString per json)
-            return null;
-        }
+    @Override
+    public String decrypt(String input) {
+        ExchangedObject messageReceived = gson.fromJson(input, ExchangedObject.class);
+        BigInteger keyBigInteger = new BigInteger(1, Base64.getDecoder().decode(messageReceived.encryptedSharedKey.getBytes()));
+        String decryptedKey = new String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
+        SymmetricKey sharedKey = new SharedKey(decryptedKey);
+        String decryptedRequest = encryptSymmetric(new String(Base64.getDecoder().decode(messageReceived.encryptedRequest.getBytes())), sharedKey, "Decrypt");
+        return decryptedRequest;
+    }
 
-        @Override
-        public String decrypt(String input) {
-            //TODO deserializza l'oggetto / json
-            ExchangedObject messageRecv= new ExchangedObject("","");
-            BigInteger keyBigInteger = new BigInteger(1, messageRecv.encryptedSharedKey.getBytes());
-            String decryptedKey = new String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
-            //TODO settare in sharedkey il campo chiave
-            //String decryptedRequest= decryptSymmetric(messageRecv.encryptedRequest);
-            //Return decryptedRequest
-            return null
+    private String encryptSymmetric(String input, SymmetricKey key, String cipherMode)
+    {
+        String algorithm = "AES";
+        String mode = "ECB";
+        String padding = "PKCS5Padding";
+        Cipher cipherToUse = null;
+        try {
+            cipherToUse = Cipher.getInstance(algorithm + "/" + mode + "/" + padding);
+        } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
+            e.printStackTrace();
         }
-    */
+        SecretKey secretKeyToUse = new SecretKeySpec(key.getKey().getBytes(), algorithm);
+        try {
+            if (cipherToUse != null) {
+                if(cipherMode.equals("Encrypt"))
+                    cipherToUse.init(Cipher.ENCRYPT_MODE, secretKeyToUse);
+                else if(cipherMode.equals("Decrypt"))
+                    cipherToUse.init(Cipher.DECRYPT_MODE, secretKeyToUse);
+                return new String(cipherToUse.doFinal(input.getBytes()));
+            }
+        } catch (InvalidKeyException | IllegalBlockSizeException | BadPaddingException e1) {
+            e1.printStackTrace();
+        }
+        return null;
+    }
+
     @Override
     public void generateKeys() {
         generateRandomPrimes();
@@ -72,16 +101,20 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         privateKey = new RSAKey(d, n);
     }
 
-    /*
     private String generateSharedKey() {
         KeyGenerator keyGen = null;
-        keyGen = KeyGenerator.getInstance("AES");
-        keyGen.init(128);
-        SecretKey secretKey = keyGen.generateKey();
-        return Base64.getEncoder().encodeToString(secretKey.getEncoded());
+        try {
+            keyGen = KeyGenerator.getInstance("AES");
+        } catch (NoSuchAlgorithmException e1) {
+            e1.printStackTrace();
+        }
+        if (keyGen != null) {
+            keyGen.init(128);
+            SecretKey secretKey = keyGen.generateKey();
+            return Base64.getEncoder().encodeToString(secretKey.getEncoded());
+        }
+        return null;
     }
-    *
-     */
 
     private void generateRandomPrimes()
     {
