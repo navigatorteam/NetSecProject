@@ -19,4 +19,14 @@ public class DummyCrypto implements CryptoServiceProvider {
     public void generateKeys() {
         //do nothing
     }
+
+    @Override
+    public AsymmetricKey getPublicKey() {
+        return null;
+    }
+
+    @Override
+    public void setOtherEntityPublicKey(AsymmetricKey key) {
+
+    }
 }

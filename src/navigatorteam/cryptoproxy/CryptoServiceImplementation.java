@@ -101,6 +101,16 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         privateKey = new RSAKey(d, n);
     }
 
+    @Override
+    public AsymmetricKey getPublicKey() {
+        return publicKey;
+    }
+
+    @Override
+    public void setOtherEntityPublicKey(AsymmetricKey key) {
+        this.otherEntityPublicKey = key;
+    }
+
     private String generateSharedKey() {
         KeyGenerator keyGen = null;
         try {

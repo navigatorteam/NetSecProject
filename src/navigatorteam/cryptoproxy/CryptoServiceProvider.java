@@ -7,7 +7,12 @@ import java.math.BigInteger;
  */
 public interface CryptoServiceProvider {
     String encrypt(String input);
-    //per adesso decrypt returna una String, quando verrà implementata l'integrità con hash va messo a posto
+
     String decrypt(String input);
+
     void generateKeys();
+
+    AsymmetricKey getPublicKey();
+
+    void setOtherEntityPublicKey(AsymmetricKey key);
 }
