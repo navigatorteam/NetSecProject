@@ -8,7 +8,7 @@ public class ConstsAndUtils {
     public static final String P2Host = "127.0.0.1";
     public static final int P2Port = 6790;
 
-    public static final boolean PLAINTEXT_MODE = false;
+    public static final boolean PLAINTEXT_MODE = true;
     public static final boolean INTEGRITY_CHECK = false;
     public static final boolean DEBUG_CLOSE_ON_FAIL = false;
 

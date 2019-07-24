@@ -4,6 +4,9 @@ package navigatorteam.cryptoproxy;
 import com.google.gson.Gson;
 import rawhttp.core.RawHttp;
 import rawhttp.core.RawHttpResponse;
+import rawhttp.core.body.BodyReader;
+import rawhttp.core.body.BytesBody;
+import rawhttp.core.body.HttpMessageBody;
 import rawhttp.core.body.StringBody;
 import rawhttp.core.server.TcpRawHttpServer;
 
@@ -183,7 +186,20 @@ public class P1Http implements LogProducer {
 
                     RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
                     con.disconnect();
-                    return Optional.ofNullable(resp.getResponse(rawHttp));
+                    RawHttpResponse<Void> serverResp = resp.getResponse(rawHttp);
+
+                    Optional<? extends BodyReader> body = serverResp.getBody();
+                    List<String> contentTypes = serverResp.getHeaders().get("Content-Type");
+                    if(body.isPresent() && !contentTypes.isEmpty() && contentTypes.stream()
+                            .map(String::toLowerCase)
+                            .noneMatch(x -> x.startsWith("plain"))){
+                        BodyReader bodyReaderResp = body.get();
+                        HttpMessageBody decodedBody = new BytesBody(Base64.getDecoder().decode(bodyReaderResp.decodeBody()));
+                        serverResp = serverResp.withBody(decodedBody);
+                    }
+
+
+                    return Optional.ofNullable(serverResp);
                 }else{
                     log().info("RSP"+id+": Received "+con.getResponseCode()+" response code from P2!");
                     return Optional.ofNullable(rawHttp.parseResponse(compileHeaders(con.getHeaderFields())+

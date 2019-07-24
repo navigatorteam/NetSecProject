@@ -6,6 +6,7 @@ import rawhttp.core.RawHttpRequest;
 import rawhttp.core.RawHttpResponse;
 import rawhttp.core.body.BodyReader;
 import rawhttp.core.body.EagerBodyReader;
+import rawhttp.core.body.HttpMessageBody;
 import rawhttp.core.body.StringBody;
 import rawhttp.core.client.RawHttpClient;
 import rawhttp.core.client.TcpRawHttpClient;
@@ -118,6 +119,21 @@ public class P2Http implements LogProducer {
 
                         //send request to server and wait resp
                         RawHttpResponse<Void> serverResp = rawHttpClient.send(rawClientReq).eagerly();
+
+                        Optional<? extends BodyReader> body = serverResp.getBody();
+                        List<String> contentTypes = serverResp.getHeaders().get("Content-Type");
+                        if(body.isPresent() && !contentTypes.isEmpty() && contentTypes.stream()
+                                .map(String::toLowerCase)
+                                .noneMatch(x -> x.startsWith("plain"))){
+                            BodyReader bodyReaderResp = body.get();
+                            String encodedBodyString = Base64.getEncoder().withoutPadding().encodeToString(bodyReaderResp.decodeBody());
+                            
+                            HttpMessageBody encodedBody = new StringBody(encodedBodyString);
+                            serverResp = serverResp.withBody(encodedBody);
+
+                        }
+
+
                         RespContainer respContainer = new RespContainer(serverResp);
                         String jsonResp = gson.toJson(respContainer);
                         log().info("RSP" + id + ": <--- " + jsonResp);
