@@ -33,14 +33,14 @@ public class P1Http implements LogProducer {
             p1Node.startListening();
 
         } catch (SocketException se) {
-            System.out.println("Socket Exception when connecting to client");
+            System.out.println("Socket Exception when connecting");
             se.printStackTrace();
         } catch (SocketTimeoutException ste) {
-            System.out.println("Timeout occurred while connecting to client");
+            System.out.println("Timeout occurred when connecting");
         } catch (UnknownHostException uhe) {
             System.out.println("Unknown P2 host");
         } catch (IOException io) {
-            System.out.println("IO exception when connecting to client");
+            System.out.println("IO exception when connecting");
         }
     }
 
@@ -60,10 +60,10 @@ public class P1Http implements LogProducer {
 
     }
 
-    private void auth() {
+    private void auth() throws IOException {
 
-        try {
 
+            log().info("Begin auth request.");
 
             URL url = new URL("http://" + ConstsAndUtils.P2Host + ":" + ConstsAndUtils.P2Port + "/auth");
             HttpURLConnection con = (HttpURLConnection) url.openConnection();
@@ -115,11 +115,7 @@ public class P1Http implements LogProducer {
             con.disconnect();
 
             log().info("End auth phase.");
-        } catch (MalformedURLException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+
 
     }
 
@@ -128,8 +124,8 @@ public class P1Http implements LogProducer {
         log().info("Started P1 Server...");
 
         httpServer.start(req -> {
+            int id = ConstsAndUtils.nextID();
             try {
-                int id = ConstsAndUtils.nextID();
                 log().info("Got http request from client. LogID = "+id);
 
                 URL url = new URL("http://" + ConstsAndUtils.P2Host + ":" + ConstsAndUtils.P2Port + "/");
@@ -178,15 +174,21 @@ public class P1Http implements LogProducer {
 
                 //log().info(content.toString());
 
-                String b64Resp = content.toString();
-                System.out.println(b64Resp);
-                String cryptResp = new String(Base64.getDecoder().decode(b64Resp.trim()));
-                String jsonResp = crypto.decrypt(cryptResp);
-                log().info("RSP"+id+": <--- " + jsonResp);
+                if(con.getResponseCode() == 200) {
+                    String b64Resp = content.toString();
+                    System.out.println(b64Resp);
+                    String cryptResp = new String(Base64.getDecoder().decode(b64Resp.trim()));
+                    String jsonResp = crypto.decrypt(cryptResp);
+                    log().info("RSP" + id + ": <--- " + jsonResp);
 
-                RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
-                con.disconnect();
-                return Optional.ofNullable(resp.getResponse(rawHttp));
+                    RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
+                    con.disconnect();
+                    return Optional.ofNullable(resp.getResponse(rawHttp));
+                }else{
+                    log().info("RSP"+id+": Received "+con.getResponseCode()+" response code from P2!");
+                    return Optional.ofNullable(rawHttp.parseResponse(compileHeaders(con.getHeaderFields())+
+                            "\r\n"+content.toString()));
+                }
 
 
             } catch (MalformedURLException e) {
@@ -207,11 +209,29 @@ public class P1Http implements LogProducer {
                 System.exit(1);
             }
 
-            return Optional.ofNullable((RawHttpResponse<Void>) rawHttp.parseResponse("HTTP/1.1 500 Internal Server Error\n" +
+            log().info("ID "+id+": Something went wrong. Sending 500 response to client.");
+
+            return Optional.ofNullable((RawHttpResponse<Void>) rawHttp.parseResponse("HTTP/1.1 500 Internal Server Error\r\n" +
                     "Content-Type: text/plain"
             ).withBody(new StringBody("Error in proxy server.")));
         });
+    }
 
+
+    private static String compileHeaders(Map<String, List<String>> headerFields){
+        StringBuilder sb = new StringBuilder();
+        headerFields.forEach((k, l)->{
+
+            if(k!=null) {
+                sb.append(k).append(": ");
+            }
+            for (String s : l) {
+                sb.append(s).append(" ");
+            }
+            sb.append("\r\n");
+        });
+
+        return sb.toString();
     }
 
 
