@@ -9,7 +9,6 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.Random;
 import javax.crypto.*;
-import javax.crypto.spec.IvParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
 public class CryptoServiceImplementation implements CryptoServiceProvider {
@@ -42,45 +41,60 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
         return null;
     }*/
 
-    //TODO DELETE ME STRONZI
-    private byte[] lastEncryptedPlaintext = new byte[]{};
+
+
 
     @Override
     public String encrypt(String input) {
 
         SymmetricKey sharedKey = new SharedKey(generateSharedKey());
-        byte[] encryptedRequest = encryptSymmetric(input.getBytes(), sharedKey, "Encrypt");
+
+        byte[] inputInBytes = input.getBytes(StandardCharsets.UTF_8);
+
+        byte[] encryptedRequest = encryptSymmetric(inputInBytes, sharedKey, "Encrypt");
+
         BigInteger keyBigInteger = new BigInteger(1, sharedKey.getKey().getBytes());
         byte[] encryptedKey = keyBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray();
-        lastEncryptedPlaintext=input.getBytes();
-        byte[] digitalSignature = generateHash(input.getBytes());
-        BigInteger signatureBigInteger = new BigInteger(1, digitalSignature);
-        byte[] encryptedDigitalSignature = signatureBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray();
-        ExchangedObject messageToSend = new ExchangedObject(Base64.getEncoder().encode(encryptedRequest), Base64.getEncoder().encode(encryptedKey), Base64.getEncoder().encode(encryptedDigitalSignature));
+
+
+        //Signature
+        byte[] digitalSignature = generateHash(inputInBytes);
+        byte[] digitalSignatureBase64 = Base64.getEncoder().encode(digitalSignature);
+        BigInteger signatureBase64BigInteger = new BigInteger(1, digitalSignatureBase64);
+        BigInteger encDigitalSignature = signatureBase64BigInteger.modPow(privateKey.getExponent(), privateKey.getModulus());
+        byte[] encSignatureByteArray = encDigitalSignature.toByteArray();
+
+        ExchangedObject messageToSend = new ExchangedObject(Base64.getEncoder().encode(encryptedRequest), Base64.getEncoder().encode(encryptedKey), Base64.getEncoder().encode(encSignatureByteArray));
+
+
         return gson.toJson(messageToSend);
     }
 
     @Override
     public String decrypt(String input) throws IntegrityCheckFailedException{
+
+
         ExchangedObject messageReceived = gson.fromJson(input, ExchangedObject.class);
-        BigInteger keyBigInteger = new BigInteger(1, Base64.getDecoder().decode(messageReceived.encryptedSharedKey.getBytes()));
+        BigInteger keyBigInteger = new BigInteger(1, Base64.getDecoder().decode(messageReceived.getEncryptedSharedKey()));
         String decryptedKey = new String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
         SymmetricKey sharedKey = new SharedKey(decryptedKey);
-        byte[] decryptedRequest = encryptSymmetric(Base64.getDecoder().decode(messageReceived.encryptedRequest), sharedKey, "Decrypt");
+        byte[] decryptedRequest = encryptSymmetric(Base64.getDecoder().decode(messageReceived.getEncryptedRequest()), sharedKey, "Decrypt");
 
-        BigInteger signatureBigInteger = new BigInteger(1, Base64.getDecoder().decode(messageReceived.encryptedDigitalSignature.getBytes()));
-        //TODO check problema
-        byte[] decryptedDigitalSignature = signatureBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus()).toByteArray();
-        byte[] hashedMessage =  generateHash(decryptedRequest);
+        byte[] generatedHash = generateHash(decryptedRequest);
 
-        System.out.println(Arrays.equals(lastEncryptedPlaintext, decryptedRequest));
-        System.out.println(Arrays.equals(generateHash(lastEncryptedPlaintext), generateHash(decryptedRequest)));
-        System.out.println(Arrays.equals(decryptedDigitalSignature, generateHash(decryptedRequest)));
+        //decrypt
+        byte[] encryptedDigitalSignature = Base64.getDecoder().decode(messageReceived.getEncryptedDigitalSignature());
+        BigInteger encSignatureBigInteger = new BigInteger(1, encryptedDigitalSignature);
+        BigInteger signatureBigInteger = encSignatureBigInteger.modPow(otherEntityPublicKey.getExponent(), otherEntityPublicKey.getModulus());
+        byte[] decryptedSignatureBase64 = signatureBigInteger.toByteArray();
+        byte[] decryptedSignature = Base64.getDecoder().decode(decryptedSignatureBase64);
 
-        if(!Arrays.equals(decryptedDigitalSignature, generateHash(decryptedRequest))){
-            throw new IntegrityCheckFailedException(new String(decryptedRequest));
+        String result = new String(decryptedRequest);
+
+        if(!Arrays.equals(decryptedSignature, generatedHash)){
+            throw new IntegrityCheckFailedException(result);
         }
-        return new String(decryptedRequest);
+        return result;
     }
 
     private byte[] encryptSymmetric(byte[] input, SymmetricKey key, String cipherMode)
@@ -110,18 +124,12 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
     }
 
     public static byte[] generateHash(byte[] input) {
-        System.err.println("generateHash -- "+new String(input));
+        //System.err.println("generateHash -- "+new String(input));
 
         MessageDigest digest;
         try {
-            digest = MessageDigest.getInstance("MD5");
-
-            //
-            digest.update(input);
-
-
-//            return digest.digest(input);
-            return digest.digest();
+            digest = MessageDigest.getInstance("SHA-256");
+            return digest.digest(input);
         } catch (NoSuchAlgorithmException ex) {
             ex.printStackTrace();
         }

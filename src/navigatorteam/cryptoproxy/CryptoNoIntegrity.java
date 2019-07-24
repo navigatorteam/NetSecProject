@@ -59,7 +59,7 @@ public class CryptoNoIntegrity implements CryptoServiceProvider {
 
     @Override
     public String decrypt(String input) {
-        ExchangedObject messageReceived = gson.fromJson(input, ExchangedObject.class);
+        ExchangedObjectNoIntegrity messageReceived = gson.fromJson(input, ExchangedObjectNoIntegrity.class);
         BigInteger keyBigInteger = new BigInteger(1, Base64.getDecoder().decode(messageReceived.encryptedSharedKey.getBytes()));
         String decryptedKey = new String(keyBigInteger.modPow(privateKey.getExponent(), privateKey.getModulus()).toByteArray());
         SymmetricKey sharedKey = new SharedKey(decryptedKey);

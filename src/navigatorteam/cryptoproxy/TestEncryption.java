@@ -10,29 +10,30 @@ public class TestEncryption {
     public static void main(String args[]) {
 
         for(int i = 0; i < 128 ; i++){
-
+            System.out.println("\n\n------");
             String c = Character.toString(i);
             String myStr = beppe + c;
             System.out.println(myStr.length());
             CryptoServiceProvider beppeBergomi = new CryptoServiceImplementation();
             beppeBergomi.generateKeys();
+
             beppeBergomi.setOtherEntityPublicKey(beppeBergomi.getPublicKey());
 
 
-            System.out.println("before message    = "+myStr);
+            //System.out.println("before message    = "+myStr);
             String cieloAzzurro = beppeBergomi.encrypt(myStr);
-            System.out.println("Encrypted message = " + cieloAzzurro);
+            //System.out.println("Encrypted message = " + cieloAzzurro);
             String sopraBerlino = null;
             try {
                 sopraBerlino = beppeBergomi.decrypt(cieloAzzurro);
             } catch (IntegrityCheckFailedException e) {
-                System.err.println("ERRORE CON "+c);
-                System.out.println("Decrypted message = "+e.getMessage());
+                System.out.println("ERRORE CON "+c);
+              //  System.out.println("Decrypted message = "+e.getMessage());
                 sopraBerlino = e.getMessage();
             }
-            System.out.println(Arrays.equals(myStr.getBytes(), sopraBerlino.getBytes()));
-            System.out.println(Arrays.equals(CryptoServiceImplementation.generateHash(myStr.getBytes()), CryptoServiceImplementation.generateHash(sopraBerlino.getBytes())));
-            System.out.println("Decrypted message = " + sopraBerlino);
+//            System.out.println(Arrays.equals(myStr.getBytes(), sopraBerlino.getBytes()));
+//            System.out.println(Arrays.equals(CryptoServiceImplementation.generateHash(myStr.getBytes()), CryptoServiceImplementation.generateHash(sopraBerlino.getBytes())));
+//            System.out.println("Decrypted message = " + sopraBerlino);
         }
     }
 
