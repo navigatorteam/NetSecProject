@@ -117,3 +117,8 @@ hs_err_pid*
 /.idea/vcs.xml
 /.idea/xtextAutoBuilderState.xml
 /NetSecProject.iml
+/.idea/artifacts/P1_jar.xml
+/.idea/artifacts/P2_jar.xml
+/src/META-INF/MANIFEST.MF
+/src/p1/META-INF/MANIFEST.MF
+/src/p2/META-INF/MANIFEST.MF
