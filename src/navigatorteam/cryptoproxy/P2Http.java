@@ -2,6 +2,7 @@ package navigatorteam.cryptoproxy;
 
 import com.google.gson.Gson;
 import rawhttp.core.RawHttp;
+import rawhttp.core.RawHttpHeaders;
 import rawhttp.core.RawHttpRequest;
 import rawhttp.core.RawHttpResponse;
 import rawhttp.core.body.BodyReader;
@@ -124,12 +125,14 @@ public class P2Http implements LogProducer {
                         List<String> contentTypes = serverResp.getHeaders().get("Content-Type");
                         if(body.isPresent() && !contentTypes.isEmpty() && contentTypes.stream()
                                 .map(String::toLowerCase)
-                                .noneMatch(x -> x.startsWith("plain"))){
+                                .noneMatch(x -> x.startsWith("plain") || x.startsWith("application"))){
                             BodyReader bodyReaderResp = body.get();
                             String encodedBodyString = Base64.getEncoder().withoutPadding().encodeToString(bodyReaderResp.decodeBody());
-                            
+
                             HttpMessageBody encodedBody = new StringBody(encodedBodyString);
                             serverResp = serverResp.withBody(encodedBody);
+                            RawHttpHeaders newContentSize = RawHttpHeaders.newBuilder().with("Content-Size", ""+encodedBodyString.length()).build();
+                            serverResp = serverResp.withHeaders(newContentSize);
 
                         }
 

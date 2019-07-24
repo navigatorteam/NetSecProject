@@ -3,6 +3,7 @@ package navigatorteam.cryptoproxy;
 
 import com.google.gson.Gson;
 import rawhttp.core.RawHttp;
+import rawhttp.core.RawHttpHeaders;
 import rawhttp.core.RawHttpResponse;
 import rawhttp.core.body.BodyReader;
 import rawhttp.core.body.BytesBody;
@@ -194,8 +195,12 @@ public class P1Http implements LogProducer {
                             .map(String::toLowerCase)
                             .noneMatch(x -> x.startsWith("plain"))){
                         BodyReader bodyReaderResp = body.get();
-                        HttpMessageBody decodedBody = new BytesBody(Base64.getDecoder().decode(bodyReaderResp.decodeBody()));
+                        byte[] decodedBodyBytes = Base64.getDecoder().decode(bodyReaderResp.decodeBody());
+                        HttpMessageBody decodedBody = new BytesBody(decodedBodyBytes);
                         serverResp = serverResp.withBody(decodedBody);
+
+                        RawHttpHeaders newContentSize = RawHttpHeaders.newBuilder().with("Content-Size", ""+decodedBodyBytes.length).build();
+                        serverResp = serverResp.withHeaders(newContentSize);
                     }
 
 
