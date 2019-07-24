@@ -187,19 +187,25 @@ public class P1Http implements LogProducer {
 
                     RespContainer resp = gson.fromJson(jsonResp, RespContainer.class);
                     con.disconnect();
+
                     RawHttpResponse<Void> serverResp = resp.getResponse(rawHttp);
 
                     Optional<? extends BodyReader> body = serverResp.getBody();
                     List<String> contentTypes = serverResp.getHeaders().get("Content-Type");
-                    if(body.isPresent() && !contentTypes.isEmpty() && contentTypes.stream()
+                    List<String> transferEncodings = serverResp.getHeaders().get("Transfer-Encoding");
+                    if(body.isPresent()
+                            && (!contentTypes.isEmpty() && contentTypes.stream()
                             .map(String::toLowerCase)
-                            .noneMatch(x -> x.startsWith("plain"))){
+                            .noneMatch(x -> x.startsWith("plain") || x.startsWith("text"))
+                            || !transferEncodings.isEmpty() && transferEncodings.stream()
+                            .map(String::toLowerCase)
+                            .noneMatch(x -> x.equals("chunked")))){
                         BodyReader bodyReaderResp = body.get();
                         byte[] decodedBodyBytes = Base64.getDecoder().decode(bodyReaderResp.decodeBody());
                         HttpMessageBody decodedBody = new BytesBody(decodedBodyBytes);
                         serverResp = serverResp.withBody(decodedBody);
 
-                        RawHttpHeaders newContentSize = RawHttpHeaders.newBuilder().with("Content-Size", ""+decodedBodyBytes.length).build();
+                        RawHttpHeaders newContentSize = RawHttpHeaders.newBuilder().with("Content-Length", ""+decodedBodyBytes.length).build();
                         serverResp = serverResp.withHeaders(newContentSize);
                     }
 

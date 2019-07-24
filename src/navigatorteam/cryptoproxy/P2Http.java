@@ -123,15 +123,21 @@ public class P2Http implements LogProducer {
 
                         Optional<? extends BodyReader> body = serverResp.getBody();
                         List<String> contentTypes = serverResp.getHeaders().get("Content-Type");
-                        if(body.isPresent() && !contentTypes.isEmpty() && contentTypes.stream()
+                        List<String> transferEncodings = serverResp.getHeaders().get("Transfer-Encoding");
+
+                        if(body.isPresent()
+                                && (!contentTypes.isEmpty() && contentTypes.stream()
                                 .map(String::toLowerCase)
-                                .noneMatch(x -> x.startsWith("plain") || x.startsWith("application"))){
+                                .noneMatch(x -> x.startsWith("plain") || x.startsWith("text"))
+                                || !transferEncodings.isEmpty() && transferEncodings.stream()
+                                .map(String::toLowerCase)
+                                .noneMatch(x -> x.equals("chunked")))){
                             BodyReader bodyReaderResp = body.get();
                             String encodedBodyString = Base64.getEncoder().withoutPadding().encodeToString(bodyReaderResp.decodeBody());
 
                             HttpMessageBody encodedBody = new StringBody(encodedBodyString);
                             serverResp = serverResp.withBody(encodedBody);
-                            RawHttpHeaders newContentSize = RawHttpHeaders.newBuilder().with("Content-Size", ""+encodedBodyString.length()).build();
+                            RawHttpHeaders newContentSize = RawHttpHeaders.newBuilder().with("Content-Length", ""+encodedBodyString.length()).build();
                             serverResp = serverResp.withHeaders(newContentSize);
 
                         }

@@ -15,7 +15,7 @@ public class ReqContainer {
         this.stringReq = req.eagerly().toString();
     }
 
-    public RawHttpRequest getReq(RawHttp rawHttp) {
-        return rawHttp.parseRequest(stringReq);
+    public RawHttpRequest getReq(RawHttp rawHttp) throws IOException {
+        return rawHttp.parseRequest(stringReq).eagerly();
     }
 }
