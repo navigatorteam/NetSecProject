@@ -142,6 +142,9 @@ public class P2Http implements LogProducer {
                     e.printStackTrace();
                 } catch (IOException e) {
                     e.printStackTrace();
+                } catch (IntegrityCheckFailedException e) {
+                    //TODO manage
+                    e.printStackTrace();
                 }
             }
 

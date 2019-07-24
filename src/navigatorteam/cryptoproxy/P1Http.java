@@ -177,6 +177,7 @@ public class P1Http implements LogProducer {
                 //log().info(content.toString());
 
                 String b64Resp = content.toString();
+                System.out.println(b64Req);
                 String cryptResp = new String(Base64.getDecoder().decode(b64Resp));
                 String jsonResp = crypto.decrypt(cryptResp);
                 log().info("RSP"+id+": <--- " + jsonResp);
@@ -191,6 +192,9 @@ public class P1Http implements LogProducer {
             } catch (ProtocolException e) {
                 e.printStackTrace();
             } catch (IOException e) {
+                e.printStackTrace();
+            } catch (IntegrityCheckFailedException e) {
+                //TODO manage
                 e.printStackTrace();
             }
             return Optional.ofNullable((RawHttpResponse<Void>) rawHttp.parseResponse("HTTP/1.1 500 Internal Server Error\n" +
