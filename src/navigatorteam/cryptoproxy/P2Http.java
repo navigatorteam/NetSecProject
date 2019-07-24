@@ -63,8 +63,10 @@ public class P2Http implements LogProducer {
 
         if(ConstsAndUtils.PLAINTEXT_MODE) {
             crypto = new DummyCrypto();
-        } else {
+        } else if(ConstsAndUtils.INTEGRITY_CHECK){
             crypto = new CryptoServiceImplementation();
+        } else {
+            crypto = new CryptoNoIntegrity();
         }
 
     }
@@ -103,19 +105,19 @@ public class P2Http implements LogProducer {
                     e.printStackTrace();
                 }
             } else {
+                int id = ConstsAndUtils.nextID();
                 try {
-                    int id = ConstsAndUtils.nextID();
                     log().info("Got http request from P1. LogID = "+id);
                     Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
                     if (bodyReaderOpt.isPresent()) {
                         EagerBodyReader bodyReader = bodyReaderOpt.get().eager();
                         String b64Req = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
-                        String cryptedReq = new String(Base64.getDecoder().decode(b64Req));
+                        String cryptedReq = new String(Base64.getDecoder().decode(b64Req.trim()));
                         String jsonReq = crypto.decrypt(cryptedReq);
                         log().info("REQ"+id+": ---> " + jsonReq);
                         ReqContainer clientReq = gson.fromJson(jsonReq, ReqContainer.class);
 
-                        RawHttpRequest rawClientReq = clientReq.getReq();
+                        RawHttpRequest rawClientReq = clientReq.getReq(rawHttp);
 
                         RawHttpClient<Void> rawHttpClient = new TcpRawHttpClient();
                         RawHttpResponse<Void> serverResp = rawHttpClient.send(rawClientReq).eagerly();
@@ -123,7 +125,7 @@ public class P2Http implements LogProducer {
                         String jsonResp = gson.toJson(respContainer);
                         log().info("RSP"+id+": <--- " + jsonResp);
                         String cryptedResp = crypto.encrypt(jsonResp);
-                        String b64Resp = Base64.getEncoder().encodeToString(cryptedResp.getBytes());
+                        String b64Resp = Base64.getEncoder().withoutPadding().encodeToString(cryptedResp.getBytes());
 
                         String utf8Resp = new String(b64Resp.getBytes(StandardCharsets.UTF_8));
                         RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("200 OK\n" +
@@ -137,17 +139,26 @@ public class P2Http implements LogProducer {
 
 
                 } catch (MalformedURLException e) {
+                    System.err.println("ID:"+id);
                     e.printStackTrace();
                 } catch (ProtocolException e) {
+                    System.err.println("ID:"+id);
                     e.printStackTrace();
                 } catch (IOException e) {
+                    System.err.println("ID:"+id);
                     e.printStackTrace();
                 } catch (IntegrityCheckFailedException e) {
+                    System.err.println("ID:"+id);
                     //TODO manage
                     e.printStackTrace();
                 }
             }
 
+            if(ConstsAndUtils.DEBUG_CLOSE_ON_FAIL) {
+                System.out.flush();
+                System.err.flush();
+                System.exit(1);
+            }
 
             log().info("Something failed. Returning 500 to P1.");
             return Optional.ofNullable((RawHttpResponse<Void>) rawHttp.parseResponse("HTTP/1.1 500 Internal Server Error\n" +

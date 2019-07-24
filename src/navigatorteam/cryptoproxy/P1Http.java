@@ -49,8 +49,10 @@ public class P1Http implements LogProducer {
         httpServer = new TcpRawHttpServer(port);
         if (ConstsAndUtils.PLAINTEXT_MODE) {
             crypto = new DummyCrypto();
-        } else {
+        } else if(ConstsAndUtils.INTEGRITY_CHECK){
             crypto = new CryptoServiceImplementation();
+        } else {
+            crypto = new CryptoNoIntegrity();
         }
 
         log().info("Port: " + port);
@@ -141,7 +143,7 @@ public class P1Http implements LogProducer {
                 String jsonReq = gson.toJson(reqC);
                 log().info("REQ"+id+": ---> " + jsonReq);
                 String cryptedReq = crypto.encrypt(jsonReq);
-                String b64Req = Base64.getEncoder().encodeToString(cryptedReq.getBytes());
+                String b64Req = Base64.getEncoder().withoutPadding().encodeToString(cryptedReq.getBytes());
                 byte[] outputInBytes = b64Req.getBytes(StandardCharsets.UTF_8);
                 con.setUseCaches(false);
                 con.setDoOutput(true);
@@ -177,8 +179,8 @@ public class P1Http implements LogProducer {
                 //log().info(content.toString());
 
                 String b64Resp = content.toString();
-                System.out.println(b64Req);
-                String cryptResp = new String(Base64.getDecoder().decode(b64Resp));
+                System.out.println(b64Resp);
+                String cryptResp = new String(Base64.getDecoder().decode(b64Resp.trim()));
                 String jsonResp = crypto.decrypt(cryptResp);
                 log().info("RSP"+id+": <--- " + jsonResp);
 
@@ -197,6 +199,14 @@ public class P1Http implements LogProducer {
                 //TODO manage
                 e.printStackTrace();
             }
+
+
+            if(ConstsAndUtils.DEBUG_CLOSE_ON_FAIL) {
+                System.out.flush();
+                System.err.flush();
+                System.exit(1);
+            }
+
             return Optional.ofNullable((RawHttpResponse<Void>) rawHttp.parseResponse("HTTP/1.1 500 Internal Server Error\n" +
                     "Content-Type: text/plain"
             ).withBody(new StringBody("Error in proxy server.")));

@@ -9,6 +9,8 @@ public class ConstsAndUtils {
     public static final int P2Port = 6790;
 
     public static final boolean PLAINTEXT_MODE = false;
+    public static final boolean INTEGRITY_CHECK = false;
+    public static final boolean DEBUG_CLOSE_ON_FAIL = false;
 
     private static int idCounter = 0;
 
