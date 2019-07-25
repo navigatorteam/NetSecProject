@@ -10,6 +10,8 @@ public interface CryptoServiceProvider {
 
     String decrypt(String input) throws IntegrityCheckFailedException;
 
+    String generateEncryptedToken();
+
     void generateKeys();
 
     AsymmetricKey getPublicKey();
