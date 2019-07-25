@@ -10,5 +10,7 @@ public interface CryptoServiceProvider {
 
     String decrypt(String input) throws Throwable;
 
-    String generateEncryptedToken(String token);
+    String encryptToken(String token);
+
+    String decryptToken(String token);
 }
