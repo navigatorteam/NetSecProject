@@ -117,7 +117,8 @@ public class P1Http implements LogProducer {
         AuthResponse authResponse = gson.fromJson(jsonResp, AuthResponse.class);
 
         AsymmetricKey otherEntityPublicKey = authResponse.getP2PublicKey();
-        myIdToken = authResponse.getEncryptedChosenToken();
+        String encryptedToken =  authResponse.getEncryptedChosenToken();
+        myIdToken = /*todo*/ encryptedToken;
 
         if (ConstsAndUtils.PLAINTEXT_MODE) {
             crypto = new DummyCrypto();

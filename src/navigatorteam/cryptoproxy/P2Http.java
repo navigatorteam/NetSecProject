@@ -97,18 +97,17 @@ public class P2Http implements LogProducer {
                     log().info("Received auth request...");
                     Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
                     if (bodyReaderOpt.isPresent()) {
-                        EagerBodyReader bodyReader = null;
-                        bodyReader = bodyReaderOpt.get().eager();
+                        EagerBodyReader bodyReader = bodyReaderOpt.get().eager();
                         String jsonReq = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
                         log().info("AUTH: ---> " + jsonReq);
                         AuthRequest authRequest = gson.fromJson(jsonReq, AuthRequest.class);
                         AsymmetricKey p1PublicKey = authRequest.getP1PublicKey();
 
-                        String token = ""; /*TODO*/
+                        String token = TokenGenerator.generateToken(); /*TODO*/
 
                         addP1Node(token, p1PublicKey);
 
-                        String encryptedToken = token; /*TODO*/
+                        String encryptedToken = getP1CryptoService(token).generateEncryptedToken(token); /*TODO*/
 
                         AuthResponse authResponse = new AuthResponse(encryptedToken, publicKey);
                         String jsonResp = gson.toJson(authResponse);
@@ -125,6 +124,8 @@ public class P2Http implements LogProducer {
                     e.printStackTrace();
                 }
             } else {
+
+                //normal request to "/"
                 int id = ConstsAndUtils.nextID();
                 try {
                     log().info("Got http request from P1. LogID = " + id);
