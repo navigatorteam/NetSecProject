@@ -18,4 +18,14 @@ public class DummyCrypto implements CryptoServiceProvider {
     public String decrypt(String input) {
         return input;
     }
+
+    @Override
+    public String encryptToken(String token) {
+        return token;
+    }
+
+    @Override
+    public String decryptToken(String token) {
+        return token;
+    }
 }

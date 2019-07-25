@@ -9,19 +9,21 @@ public class TestEncryption {
 
     public static void main(String args[]) {
 
-        for(int i = 0; i < 128 ; i++){
+        KeyPairGenerator keyPairGenerator = new KeyPairGenerator();
+        keyPairGenerator.generateKeys();
+
+        CryptoServiceProvider beppeBergomi = new CryptoServiceImplementation(
+                keyPairGenerator.getPrivateKey(),
+                keyPairGenerator.getPublicKey(),
+                keyPairGenerator.getPublicKey());
+
+        /*for(int i = 0; i < 128 ; i++){
             System.out.println("\n\n------");
             String c = Character.toString(i);
             String myStr = beppe + c;
             System.out.println(myStr.length());
 
-            KeyPairGenerator keyPairGenerator = new KeyPairGenerator();
-            keyPairGenerator.generateKeys();
 
-            CryptoServiceProvider beppeBergomi = new CryptoServiceImplementation(
-                    keyPairGenerator.getPrivateKey(),
-                    keyPairGenerator.getPublicKey(),
-                    keyPairGenerator.getPublicKey());
 
 
 
@@ -42,6 +44,16 @@ public class TestEncryption {
 //            System.out.println(Arrays.equals(CryptoServiceImplementation.generateHash(myStr.getBytes()), CryptoServiceImplementation.generateHash(sopraBerlino.getBytes())));
 //            System.out.println("Decrypted message = " + sopraBerlino);
         }
+
+         */
+
+
+        String token = "12345";
+        String encToken = beppeBergomi.encryptToken(token);
+        System.out.println(encToken);
+        String decToken = beppeBergomi.decryptToken(encToken);
+        System.out.println(decToken);
+
     }
 
 }

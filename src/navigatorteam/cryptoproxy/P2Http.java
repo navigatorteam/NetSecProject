@@ -1,6 +1,7 @@
 package navigatorteam.cryptoproxy;
 
 import com.google.gson.Gson;
+import com.google.gson.InstanceCreator;
 import rawhttp.core.RawHttp;
 import rawhttp.core.RawHttpHeaders;
 import rawhttp.core.RawHttpRequest;
@@ -107,7 +108,7 @@ public class P2Http implements LogProducer {
 
                         addP1Node(token, p1PublicKey);
 
-                        String encryptedToken = getP1CryptoService(token).generateEncryptedToken(token); /*TODO*/
+                        String encryptedToken = getP1CryptoService(token).encryptToken(token); /*TODO*/
 
                         AuthResponse authResponse = new AuthResponse(encryptedToken, publicKey);
                         String jsonResp = gson.toJson(authResponse);

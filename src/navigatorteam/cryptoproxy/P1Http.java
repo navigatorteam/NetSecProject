@@ -31,7 +31,12 @@ public class P1Http implements LogProducer {
 
     public static void main(String args[]) {
         try {
-            P1Http p1Node = new P1Http(ConstsAndUtils.P1Port);
+            int port = ConstsAndUtils.P1Port;
+            if (args.length>0){
+                port = Integer.parseInt(args[0]);
+            }
+
+            P1Http p1Node = new P1Http(port);
             p1Node.auth();
             p1Node.startListening();
 
@@ -118,7 +123,7 @@ public class P1Http implements LogProducer {
 
         AsymmetricKey otherEntityPublicKey = authResponse.getP2PublicKey();
         String encryptedToken =  authResponse.getEncryptedChosenToken();
-        myIdToken = /*todo*/ encryptedToken;
+
 
         if (ConstsAndUtils.PLAINTEXT_MODE) {
             crypto = new DummyCrypto();
@@ -128,6 +133,8 @@ public class P1Http implements LogProducer {
             crypto = new CryptoNoIntegrity(privateKey, publicKey, otherEntityPublicKey);
         }
 
+
+        myIdToken = crypto.decryptToken(authResponse.getEncryptedChosenToken());
 
         con.disconnect();
 

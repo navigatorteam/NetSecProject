@@ -26,8 +26,8 @@ public class KeyPairGenerator {
         generateN();
         generateE();
         generateD();
-        publicKey = new RSAKey(e, n);
-        privateKey = new RSAKey(d, n);
+        publicKey = new AsymmetricKey(e, n);
+        privateKey = new AsymmetricKey(d, n);
     }
 
 
