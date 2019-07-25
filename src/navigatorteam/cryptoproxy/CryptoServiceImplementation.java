@@ -71,8 +71,7 @@ public class CryptoServiceImplementation extends  CryptoService implements Crypt
 
 
     @Override
-    public String generateEncryptedToken() {
-        String token = TokenGenerator.generateToken();
+    public String generateEncryptedToken(String token) {
         byte[] tokenBase64 = Base64.getEncoder().encode(token.getBytes(StandardCharsets.UTF_8));
         BigInteger tokenBase64BigInteger = new BigInteger(1, tokenBase64);
         BigInteger encTokenBase64 = tokenBase64BigInteger.modPow(privateKey.getExponent(), privateKey.getModulus());
