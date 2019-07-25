@@ -1,47 +1,18 @@
 package navigatorteam.cryptoproxy;
 
-import com.google.gson.Gson;
+
 
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
-import java.security.*;
 import java.util.Arrays;
 import java.util.Base64;
-import java.util.Random;
-import javax.crypto.*;
-import javax.crypto.spec.SecretKeySpec;
 
-public class CryptoServiceImplementation implements CryptoServiceProvider {
-
-    private AsymmetricKey publicKey;
-    private AsymmetricKey privateKey;
-    private AsymmetricKey otherEntityPublicKey;
-    private Gson gson = new Gson();
-    //TODO SymmetricKey
-
-    private BigInteger p;
-    private BigInteger q;
-    private BigInteger n;
-    private BigInteger phiN;
-    private BigInteger e;
-    private BigInteger d;
-
-    private int bigIntegerLength = 512;
-
-    //TODO settare la chiave otherEntityPublicKey
+public class CryptoServiceImplementation extends  CryptoService implements CryptoServiceProvider {
 
 
-    /*@Override
-    public ExchangedObject encrypt(String input) {
-        return null;
+    public CryptoServiceImplementation(AsymmetricKey privateKey, AsymmetricKey publicKey, AsymmetricKey otherEntityPublicKey) {
+        super(privateKey, publicKey, otherEntityPublicKey);
     }
-
-    @Override
-    public String decrypt(String input) {
-        return null;
-    }*/
-
-
 
 
     @Override
@@ -71,7 +42,7 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
     }
 
     @Override
-    public String decrypt(String input) throws IntegrityCheckFailedException{
+    public String decrypt(String input) throws IntegrityCheckFailedException {
 
 
         ExchangedObject messageReceived = gson.fromJson(input, ExchangedObject.class);
@@ -91,123 +62,12 @@ public class CryptoServiceImplementation implements CryptoServiceProvider {
 
         String result = new String(decryptedRequest);
 
-        if(!Arrays.equals(decryptedSignature, generatedHash)){
+        if (!Arrays.equals(decryptedSignature, generatedHash)) {
             throw new IntegrityCheckFailedException(result);
         }
         return result;
     }
 
-    private byte[] encryptSymmetric(byte[] input, SymmetricKey key, String cipherMode)
-    {
-        String algorithm = "AES";
-        String mode = "ECB";
-        String padding = "PKCS5Padding";
-        Cipher cipherToUse = null;
-        try {
-            cipherToUse = Cipher.getInstance(algorithm + "/" + mode + "/" + padding);
-        } catch (NoSuchAlgorithmException | NoSuchPaddingException e) {
-            e.printStackTrace();
-        }
-        SecretKey secretKeyToUse = new SecretKeySpec(key.getKey().getBytes(), algorithm);
-        try {
-            if (cipherToUse != null) {
-                if(cipherMode.equals("Encrypt"))
-                    cipherToUse.init(Cipher.ENCRYPT_MODE, secretKeyToUse);
-                else if(cipherMode.equals("Decrypt"))
-                    cipherToUse.init(Cipher.DECRYPT_MODE, secretKeyToUse);
-                return cipherToUse.doFinal(input);
-            }
-        } catch (InvalidKeyException | IllegalBlockSizeException | BadPaddingException e1) {
-            e1.printStackTrace();
-        }
-        return null;
-    }
 
-    public static byte[] generateHash(byte[] input) {
-        //System.err.println("generateHash -- "+new String(input));
-
-        MessageDigest digest;
-        try {
-            digest = MessageDigest.getInstance("SHA-256");
-            return digest.digest(input);
-        } catch (NoSuchAlgorithmException ex) {
-            ex.printStackTrace();
-        }
-        return null;
-    }
-
-
-
-    private boolean checkIntegrity(byte[] decryptedHash, byte[] hashedMessage) {
-
-
-        return Arrays.equals(decryptedHash, hashedMessage);
-    }
-
-    @Override
-    public void generateKeys() {
-        generateRandomPrimes();
-        generateN();
-        generateE();
-        generateD();
-        publicKey = new RSAKey(e, n);
-        privateKey = new RSAKey(d, n);
-    }
-
-    @Override
-    public AsymmetricKey getPublicKey() {
-        return publicKey;
-    }
-
-    @Override
-    public void setOtherEntityPublicKey(AsymmetricKey key) {
-        this.otherEntityPublicKey = key;
-    }
-
-    private String generateSharedKey() {
-        KeyGenerator keyGen = null;
-        try {
-            keyGen = KeyGenerator.getInstance("AES");
-        } catch (NoSuchAlgorithmException e1) {
-            e1.printStackTrace();
-        }
-        if (keyGen != null) {
-            keyGen.init(128);
-            SecretKey secretKey = keyGen.generateKey();
-            return Base64.getEncoder().encodeToString(secretKey.getEncoded());
-        }
-        return null;
-    }
-
-    private void generateRandomPrimes()
-    {
-        Random randomNumber = new SecureRandom();
-        this.p = BigInteger.probablePrime(bigIntegerLength, randomNumber);
-        this.q = BigInteger.probablePrime(bigIntegerLength, randomNumber);
-    }
-
-    private void generateN() {
-        this.n = p.multiply(q);
-        generatePhiN();
-    }
-
-    private void generatePhiN() {
-        this.phiN = p.subtract(BigInteger.valueOf(1)).multiply(q.subtract(BigInteger.valueOf(1)));
-    }
-
-    private void generateE() {
-        Random randomNumber = new SecureRandom();
-        BigInteger probableE;
-        byte[] generatedRandom = new byte[bigIntegerLength/8];
-        do {
-            randomNumber.nextBytes(generatedRandom);
-            probableE = new BigInteger(1, generatedRandom);
-        }while((probableE.equals(BigInteger.valueOf(1))) || (phiN.compareTo(probableE) < 1) || (!(phiN.gcd(probableE).equals(BigInteger.valueOf(1)))));
-        this.e = probableE;
-    }
-
-    private void generateD() {
-        this.d = e.modInverse(phiN);
-    }
 
 }

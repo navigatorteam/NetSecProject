@@ -8,11 +8,6 @@ import java.math.BigInteger;
 public interface CryptoServiceProvider {
     String encrypt(String input);
 
-    String decrypt(String input) throws IntegrityCheckFailedException;
+    String decrypt(String input) throws Throwable;
 
-    void generateKeys();
-
-    AsymmetricKey getPublicKey();
-
-    void setOtherEntityPublicKey(AsymmetricKey key);
 }

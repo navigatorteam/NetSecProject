@@ -7,6 +7,8 @@ import java.math.BigInteger;
  */
 public class DummyCrypto implements CryptoServiceProvider {
 
+
+    //simple implementation that returns
     @Override
     public String encrypt(String input) {
         return input;
@@ -15,20 +17,5 @@ public class DummyCrypto implements CryptoServiceProvider {
     @Override
     public String decrypt(String input) {
         return input;
-    }
-
-    @Override
-    public void generateKeys() {
-        //do nothing
-    }
-
-    @Override
-    public AsymmetricKey getPublicKey() {
-        return null;
-    }
-
-    @Override
-    public void setOtherEntityPublicKey(AsymmetricKey key) {
-
     }
 }

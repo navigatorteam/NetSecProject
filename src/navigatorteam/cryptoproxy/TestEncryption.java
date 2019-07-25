@@ -14,10 +14,15 @@ public class TestEncryption {
             String c = Character.toString(i);
             String myStr = beppe + c;
             System.out.println(myStr.length());
-            CryptoServiceProvider beppeBergomi = new CryptoServiceImplementation();
-            beppeBergomi.generateKeys();
 
-            beppeBergomi.setOtherEntityPublicKey(beppeBergomi.getPublicKey());
+            KeyPairGenerator keyPairGenerator = new KeyPairGenerator();
+            keyPairGenerator.generateKeys();
+
+            CryptoServiceProvider beppeBergomi = new CryptoServiceImplementation(
+                    keyPairGenerator.getPrivateKey(),
+                    keyPairGenerator.getPublicKey(),
+                    keyPairGenerator.getPublicKey());
+
 
 
             //System.out.println("before message    = "+myStr);
@@ -30,6 +35,8 @@ public class TestEncryption {
                 System.out.println("ERRORE CON "+c);
               //  System.out.println("Decrypted message = "+e.getMessage());
                 sopraBerlino = e.getMessage();
+            } catch (Throwable throwable) {
+                throwable.printStackTrace();
             }
 //            System.out.println(Arrays.equals(myStr.getBytes(), sopraBerlino.getBytes()));
 //            System.out.println(Arrays.equals(CryptoServiceImplementation.generateHash(myStr.getBytes()), CryptoServiceImplementation.generateHash(sopraBerlino.getBytes())));

@@ -29,9 +29,13 @@ public class P2Http implements LogProducer {
     private static RawHttp rawHttp = new RawHttp();
     private static Gson gson = new Gson();
 
+    private AsymmetricKey privateKey;
+    private AsymmetricKey publicKey;
 
     private TcpRawHttpServer httpServer;
-    private CryptoServiceProvider crypto = null;
+
+
+    private HashMap<String, CryptoServiceProvider> cryptoMap = new HashMap<>();
 
 
     public static void main(String args[]) {
@@ -57,16 +61,31 @@ public class P2Http implements LogProducer {
         //serverSocketWithP1.setSoTimeout(100000);	//if needed to add timeout
         log().info("Port: " + port);
 
-        if (ConstsAndUtils.PLAINTEXT_MODE) {
-            crypto = new DummyCrypto();
-        } else if (ConstsAndUtils.INTEGRITY_CHECK) {
-            crypto = new CryptoServiceImplementation();
-        } else {
-            crypto = new CryptoNoIntegrity();
-        }
+        KeyPairGenerator keyPairGenerator = new KeyPairGenerator();
+        keyPairGenerator.generateKeys();
+        this.privateKey = keyPairGenerator.getPrivateKey();
+        this.publicKey = keyPairGenerator.getPublicKey();
 
     }
 
+    private void addP1Node(String token, AsymmetricKey p1PublicKey){
+        CryptoServiceProvider crypto;
+
+        if (ConstsAndUtils.PLAINTEXT_MODE) {
+            crypto = new DummyCrypto();
+        } else if (ConstsAndUtils.INTEGRITY_CHECK) {
+            crypto = new CryptoServiceImplementation(privateKey, publicKey, p1PublicKey);
+        } else {
+            crypto = new CryptoNoIntegrity(privateKey, publicKey, p1PublicKey);
+        }
+
+        cryptoMap.put(token, crypto);
+    }
+
+
+    private CryptoServiceProvider getP1CryptoService(String token){
+        return cryptoMap.get(token);
+    }
 
     private void startListening() throws IOException {
         log().info("Started listening...");
@@ -82,12 +101,17 @@ public class P2Http implements LogProducer {
                         bodyReader = bodyReaderOpt.get().eager();
                         String jsonReq = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
                         log().info("AUTH: ---> " + jsonReq);
-                        AsymmetricKey otherpartyPublicKey = gson.fromJson(jsonReq, RSAKey.class);
+                        AuthRequest authRequest = gson.fromJson(jsonReq, AuthRequest.class);
+                        AsymmetricKey p1PublicKey = authRequest.getP1PublicKey();
 
-                        crypto.setOtherEntityPublicKey(otherpartyPublicKey);
-                        crypto.generateKeys();
-                        AsymmetricKey publicKey = crypto.getPublicKey();
-                        String jsonResp = gson.toJson(publicKey);
+                        String token = ""; /*TODO*/
+
+                        addP1Node(token, p1PublicKey);
+
+                        String encryptedToken = token; /*TODO*/
+
+                        AuthResponse authResponse = new AuthResponse(encryptedToken, publicKey);
+                        String jsonResp = gson.toJson(authResponse);
                         log().info("AUTH: <--- " + jsonResp);
                         RawHttpResponse<Void> rawHttpResponse = rawHttp.parseResponse("200 OK\n" +
                                 "Content-Length: " + jsonResp.length() + "\n" +
@@ -107,8 +131,18 @@ public class P2Http implements LogProducer {
                     Optional<? extends BodyReader> bodyReaderOpt = req.getBody();
                     if (bodyReaderOpt.isPresent()) {
                         EagerBodyReader bodyReader = bodyReaderOpt.get().eager();
-                        String b64Req = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
+
+                        String p1RequestString = bodyReader.decodeBodyToString(Charset.forName("UTF-8"));
+                        P1Request p1Request = gson.fromJson(p1RequestString, P1Request.class);
+
+                        String token = p1Request.getToken();
+
+                        String b64Req = p1Request.encryptedMessage;
+
                         String cryptedReq = new String(Base64.getDecoder().decode(b64Req.trim()));
+
+                        CryptoServiceProvider crypto = getP1CryptoService(token);
+
                         String jsonReq = crypto.decrypt(cryptedReq);
                         log().info("REQ" + id + ": ---> " + jsonReq);
                         ReqContainer clientReq = gson.fromJson(jsonReq, ReqContainer.class);
@@ -181,6 +215,8 @@ public class P2Http implements LogProducer {
                     System.err.println("ID:" + id);
                     //TODO manage
                     e.printStackTrace();
+                } catch (Throwable throwable) {
+                    throwable.printStackTrace();
                 }
             }
 
